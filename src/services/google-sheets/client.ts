@@ -60,10 +60,24 @@ class GoogleSheetsClient {
     // For read operations, prefer API key if available
     let accessToken: string | null = null
     
-    // Prepare headers
-    const headers: HeadersInit = {
+    // Prepare headers as a Record to allow dynamic assignment
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+    }
+    
+    // Merge existing headers if they're a plain object
+    if (options.headers) {
+      if (options.headers instanceof Headers) {
+        options.headers.forEach((value, key) => {
+          headers[key] = value
+        })
+      } else if (Array.isArray(options.headers)) {
+        options.headers.forEach(([key, value]) => {
+          headers[key] = value
+        })
+      } else {
+        Object.assign(headers, options.headers)
+      }
     }
 
     if (isWriteOperation) {
@@ -102,10 +116,24 @@ class GoogleSheetsClient {
         if (oauthToken) {
           // Retry with OAuth token using Authorization header
           url.searchParams.delete('key')
-          const retryHeaders: HeadersInit = {
+          const retryHeaders: Record<string, string> = {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${oauthToken}`,
-            ...options.headers,
+          }
+          
+          // Merge existing headers
+          if (options.headers) {
+            if (options.headers instanceof Headers) {
+              options.headers.forEach((value, key) => {
+                retryHeaders[key] = value
+              })
+            } else if (Array.isArray(options.headers)) {
+              options.headers.forEach(([key, value]) => {
+                retryHeaders[key] = value
+              })
+            } else {
+              Object.assign(retryHeaders, options.headers)
+            }
           }
           return fetch(url.toString(), {
             ...options,
