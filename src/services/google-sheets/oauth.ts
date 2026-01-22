@@ -115,11 +115,18 @@ export function initiateOAuth(): void {
 async function exchangeCodeForTokens(code: string, redirectUri: string): Promise<TokenResponse> {
   const functionsUrl = getSupabaseFunctionsUrl()
   const endpoint = `${functionsUrl}/exchange-google-token`
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  
+  if (!supabaseAnonKey) {
+    throw new Error('Supabase anon key is not configured')
+  }
   
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${supabaseAnonKey}`,
     },
     body: JSON.stringify({
       code,
@@ -201,14 +208,23 @@ export async function refreshToken(): Promise<string> {
   
   const functionsUrl = getSupabaseFunctionsUrl()
   const endpoint = `${functionsUrl}/exchange-google-token`
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  const redirectUri = getRedirectUri()
+  
+  if (!supabaseAnonKey) {
+    throw new Error('Supabase anon key is not configured')
+  }
   
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${supabaseAnonKey}`,
     },
     body: JSON.stringify({
       refresh_token: tokens.refreshToken,
+      redirect_uri: redirectUri,
     }),
   })
   
