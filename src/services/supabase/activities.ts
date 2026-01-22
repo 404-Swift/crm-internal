@@ -1,0 +1,138 @@
+import { supabase } from './client'
+import type { Activity, ActivityFormInput } from '@/types/activity'
+import type { Database } from './types'
+import { googleSheetsActivitiesService } from '../google-sheets/activities'
+
+type ActivityRow = Database['public']['Tables']['activities']['Row']
+type ActivityInsert = Database['public']['Tables']['activities']['Insert']
+
+export const activitiesService = {
+  async getAll(userId: string): Promise<Activity[]> {
+    const { data, error } = await supabase
+      .from('activities')
+      .select(`
+        *,
+        contact:contacts (
+          first_name,
+          last_name
+        ),
+        deal:deals (
+          title
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data.map((activity) => ({
+      ...activity,
+      contact: activity.contact as Activity['contact'],
+      deal: activity.deal as Activity['deal'],
+    })) as Activity[]
+  },
+
+  async getByContact(contactId: string, userId: string): Promise<Activity[]> {
+    const { data, error } = await supabase
+      .from('activities')
+      .select(`
+        *,
+        contact:contacts (
+          first_name,
+          last_name
+        ),
+        deal:deals (
+          title
+        )
+      `)
+      .eq('contact_id', contactId)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data.map((activity) => ({
+      ...activity,
+      contact: activity.contact as Activity['contact'],
+      deal: activity.deal as Activity['deal'],
+    })) as Activity[]
+  },
+
+  async getByDeal(dealId: string, userId: string): Promise<Activity[]> {
+    const { data, error } = await supabase
+      .from('activities')
+      .select(`
+        *,
+        contact:contacts (
+          first_name,
+          last_name
+        ),
+        deal:deals (
+          title
+        )
+      `)
+      .eq('deal_id', dealId)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return data.map((activity) => ({
+      ...activity,
+      contact: activity.contact as Activity['contact'],
+      deal: activity.deal as Activity['deal'],
+    })) as Activity[]
+  },
+
+  async create(input: ActivityFormInput, userId: string): Promise<Activity> {
+    const insert: ActivityInsert = {
+      ...input,
+      user_id: userId,
+      created_at: new Date().toISOString(),
+    }
+
+    // Write to Supabase first (fast UI update)
+    const { data, error } = await supabase
+      .from('activities')
+      .insert(insert)
+      .select(`
+        *,
+        contact:contacts (
+          first_name,
+          last_name
+        ),
+        deal:deals (
+          title
+        )
+      `)
+      .single()
+
+    if (error) throw error
+    
+    const activity = {
+      ...data,
+      contact: data.contact as Activity['contact'],
+      deal: data.deal as Activity['deal'],
+    } as Activity
+
+    // Write to Google Sheets in background (source of truth)
+    googleSheetsActivitiesService.create(activity).catch((err) => {
+      console.error('Background Google Sheets sync failed:', err)
+    })
+
+    return activity
+  },
+
+  async delete(id: string, userId: string): Promise<void> {
+    // Delete from Supabase first
+    const { error } = await supabase
+      .from('activities')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId)
+
+    if (error) throw error
+
+    // Delete from Google Sheets in background
+    googleSheetsActivitiesService.delete(id).catch((err) => {
+      console.error('Background Google Sheets delete failed:', err)
+    })
+  },
+}
