@@ -3,7 +3,6 @@ import type { Activity, ActivityFormInput } from '@/types/activity'
 import type { Database } from './types'
 import { googleSheetsActivitiesService } from '../google-sheets/activities'
 
-type ActivityRow = Database['public']['Tables']['activities']['Row']
 type ActivityInsert = Database['public']['Tables']['activities']['Insert']
 
 export const activitiesService = {
@@ -24,7 +23,7 @@ export const activitiesService = {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data.map((activity) => ({
+    return (data || []).map((activity: any) => ({
       ...activity,
       contact: activity.contact as Activity['contact'],
       deal: activity.deal as Activity['deal'],
@@ -49,7 +48,7 @@ export const activitiesService = {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data.map((activity) => ({
+    return (data || []).map((activity: any) => ({
       ...activity,
       contact: activity.contact as Activity['contact'],
       deal: activity.deal as Activity['deal'],
@@ -74,7 +73,7 @@ export const activitiesService = {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data.map((activity) => ({
+    return (data || []).map((activity: any) => ({
       ...activity,
       contact: activity.contact as Activity['contact'],
       deal: activity.deal as Activity['deal'],
@@ -91,7 +90,7 @@ export const activitiesService = {
     // Write to Supabase first (fast UI update)
     const { data, error } = await supabase
       .from('activities')
-      .insert(insert)
+      .insert(insert as any)
       .select(`
         *,
         contact:contacts (
@@ -107,9 +106,9 @@ export const activitiesService = {
     if (error) throw error
     
     const activity = {
-      ...data,
-      contact: data.contact as Activity['contact'],
-      deal: data.deal as Activity['deal'],
+      ...(data as any),
+      contact: (data as any).contact as Activity['contact'],
+      deal: (data as any).deal as Activity['deal'],
     } as Activity
 
     // Write to Google Sheets in background (source of truth)

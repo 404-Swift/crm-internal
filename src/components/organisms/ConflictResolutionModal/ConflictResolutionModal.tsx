@@ -99,7 +99,7 @@ export function ConflictResolutionModal<T extends { id: string }>({
 
   const handleFieldResolution = (recordId: string, field: keyof T, source: 'supabase' | 'sheets') => {
     const newResolutions = new Map(fieldResolutions)
-    const current = newResolutions.get(recordId) || {}
+    const current: Partial<Record<keyof T, 'supabase' | 'sheets'>> = newResolutions.get(recordId) || {}
     current[field] = source
     newResolutions.set(recordId, current)
     setFieldResolutions(newResolutions)

@@ -1,6 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { LogOut, Menu, X } from 'lucide-react'
-import { Button } from '@/components/atoms/Button'
 import { Avatar } from '@/components/atoms/Avatar'
 import { useAuth } from '@/hooks/useAuth'
 import { useState } from 'react'

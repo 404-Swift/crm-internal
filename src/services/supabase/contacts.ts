@@ -46,7 +46,7 @@ export const contactsService = {
     // Write to Supabase first (fast UI update)
     const { data, error } = await supabase
       .from('contacts')
-      .insert(insert)
+      .insert(insert as any)
       .select()
       .single()
 
@@ -74,9 +74,9 @@ export const contactsService = {
     }
 
     // Update Supabase first (fast UI update)
-    const { data, error } = await supabase
-      .from('contacts')
-      .update(update)
+    const { data, error } = await (supabase
+      .from('contacts') as any)
+      .update(update as any)
       .eq('id', id)
       .eq('user_id', userId)
       .select()

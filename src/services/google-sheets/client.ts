@@ -164,7 +164,7 @@ class GoogleSheetsClient {
     return data.values || []
   }
 
-  async deleteRow(sheetName: string, rowIndex: number): Promise<void> {
+  async deleteRow(_sheetName: string, _rowIndex: number): Promise<void> {
     // Note: Deleting rows requires batchUpdate, which needs OAuth2
     // For now, we'll mark rows as deleted by updating a status column
     // Full delete requires OAuth2 authentication

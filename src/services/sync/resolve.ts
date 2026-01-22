@@ -7,7 +7,7 @@ import { googleSheetsDealsService } from '../google-sheets/deals'
 import { googleSheetsActivitiesService } from '../google-sheets/activities'
 import type { Contact, ContactFormInput } from '@/types/contact'
 import type { Deal, DealFormInput } from '@/types/deal'
-import type { Activity, ActivityFormInput } from '@/types/activity'
+import type { Activity } from '@/types/activity'
 import type { Resolution } from '@/components/organisms/ConflictResolutionModal/ConflictResolutionModal'
 import type { RecordConflict } from './compare'
 
@@ -74,7 +74,7 @@ export async function resolveContactConflicts(
         // New record in Sheets - create in Supabase with same ID
         const { supabase } = await import('../supabase/client')
         const now = new Date().toISOString()
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('contacts')
           .insert({
             id: sheetsContact.id, // Preserve ID from Sheets
@@ -88,7 +88,7 @@ export async function resolveContactConflicts(
             user_id: userId,
             created_at: sheetsContact.created_at || now,
             updated_at: sheetsContact.updated_at || now,
-          })
+          } as any)
           .select()
           .single()
         
@@ -189,7 +189,7 @@ export async function resolveDealConflicts(
         // New record in Sheets - create in Supabase with same ID
         const { supabase } = await import('../supabase/client')
         const now = new Date().toISOString()
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('deals')
           .insert({
             id: sheetsDeal.id, // Preserve ID from Sheets
@@ -202,7 +202,7 @@ export async function resolveDealConflicts(
             user_id: userId,
             created_at: sheetsDeal.created_at || now,
             updated_at: sheetsDeal.updated_at || now,
-          })
+          } as any)
           .select(`
             *,
             contact:contacts (
@@ -271,7 +271,7 @@ export async function resolveActivityConflicts(
       if (conflict.isNewInSheets && sheetsActivity && resolution.action === 'use-sheets') {
         // New in Sheets - create in Supabase with same ID
         const { supabase } = await import('../supabase/client')
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('activities')
           .insert({
             id: sheetsActivity.id,
@@ -281,7 +281,7 @@ export async function resolveActivityConflicts(
             description: sheetsActivity.description,
             user_id: userId,
             created_at: sheetsActivity.created_at || new Date().toISOString(),
-          })
+          } as any)
           .select(`
             *,
             contact:contacts (
@@ -310,7 +310,7 @@ export async function resolveActivityConflicts(
       } else if (conflict.isNewInSupabase && supabaseActivity && resolution.action === 'use-supabase') {
         // New in Supabase - sync to Sheets
         await googleSheetsActivitiesService.create(supabaseActivity)
-      } else if (supabaseActivity && sheetsActivity && resolution.action !== 'skip') {
+      } else if (supabaseActivity && sheetsActivity && (resolution.action === 'use-supabase' || resolution.action === 'use-sheets' || resolution.action === 'merge')) {
         // Both exist - use the one specified
         if (resolution.action === 'use-sheets') {
           // Update Supabase with Sheets data (delete and recreate)

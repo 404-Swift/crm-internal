@@ -3,7 +3,6 @@ import type { Deal, DealFormInput } from '@/types/deal'
 import type { Database } from './types'
 import { googleSheetsDealsService } from '../google-sheets/deals'
 
-type DealRow = Database['public']['Tables']['deals']['Row']
 type DealInsert = Database['public']['Tables']['deals']['Insert']
 type DealUpdate = Database['public']['Tables']['deals']['Update']
 
@@ -24,7 +23,7 @@ export const dealsService = {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data.map((deal) => ({
+    return (data || []).map((deal: any) => ({
       ...deal,
       contact: deal.contact as Deal['contact'],
     })) as Deal[]
@@ -51,8 +50,8 @@ export const dealsService = {
       throw error
     }
     return {
-      ...data,
-      contact: data.contact as Deal['contact'],
+      ...(data as any),
+      contact: (data as any).contact as Deal['contact'],
     } as Deal
   },
 
@@ -73,7 +72,7 @@ export const dealsService = {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data.map((deal) => ({
+    return (data || []).map((deal: any) => ({
       ...deal,
       contact: deal.contact as Deal['contact'],
     })) as Deal[]
@@ -91,7 +90,7 @@ export const dealsService = {
     // Write to Supabase first (fast UI update)
     const { data, error } = await supabase
       .from('deals')
-      .insert(insert)
+      .insert(insert as any)
       .select(`
         *,
         contact:contacts (
@@ -106,8 +105,8 @@ export const dealsService = {
     if (error) throw error
     
     const deal = {
-      ...data,
-      contact: data.contact as Deal['contact'],
+      ...(data as any),
+      contact: (data as any).contact as Deal['contact'],
     } as Deal
 
     // Write to Google Sheets in background (source of truth)
@@ -129,9 +128,9 @@ export const dealsService = {
     }
 
     // Update Supabase first (fast UI update)
-    const { data, error } = await supabase
-      .from('deals')
-      .update(update)
+    const { data, error } = await (supabase
+      .from('deals') as any)
+      .update(update as any)
       .eq('id', id)
       .eq('user_id', userId)
       .select(`
@@ -148,8 +147,8 @@ export const dealsService = {
     if (error) throw error
     
     const deal = {
-      ...data,
-      contact: data.contact as Deal['contact'],
+      ...(data as any),
+      contact: (data as any).contact as Deal['contact'],
     } as Deal
 
     // Update Google Sheets in background (source of truth)

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/atoms/Badge'
-import { Button } from '@/components/atoms/Button'
 import { useDeals } from '@/hooks/useDeals'
 import { DEAL_STAGES } from '@/lib/constants'
 import { format } from 'date-fns'

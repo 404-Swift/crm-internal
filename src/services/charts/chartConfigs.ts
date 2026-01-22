@@ -131,7 +131,7 @@ export const getDealsByStageOverTimeConfig = (deals: Deal[]): EChartsOption => {
 
     return {
       name: stage.charAt(0).toUpperCase() + stage.slice(1).replace('-', ' '),
-      type: 'line',
+      type: 'line' as const,
       smooth: true,
       data: monthlyCounts,
       lineStyle: {
@@ -143,7 +143,7 @@ export const getDealsByStageOverTimeConfig = (deals: Deal[]): EChartsOption => {
       },
       areaStyle: {
         color: {
-          type: 'linear',
+          type: 'linear' as const,
           x: 0,
           y: 0,
           x2: 0,
