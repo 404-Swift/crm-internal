@@ -21,6 +21,15 @@ export interface RecordConflict<T> {
   isDeleted: boolean
 }
 
+/**
+ * Normalize phone number for comparison by removing formatting characters
+ * Removes: +, spaces, dashes, parentheses, dots - keeps only digits
+ */
+function normalizePhoneNumber(phone: string): string {
+  if (!phone) return ''
+  return phone.replace(/[\s+\-().]/g, '')
+}
+
 export function compareContacts(
   supabaseContacts: Contact[],
   sheetsContacts: Contact[]
@@ -51,8 +60,14 @@ export function compareContacts(
         const sheetsVal = sheets[field]
         
         // Normalize for comparison
-        const supabaseNormalized = String(supabaseVal || '').trim()
-        const sheetsNormalized = String(sheetsVal || '').trim()
+        let supabaseNormalized = String(supabaseVal || '').trim()
+        let sheetsNormalized = String(sheetsVal || '').trim()
+        
+        // Special handling for phone numbers - normalize formatting
+        if (field === 'phone') {
+          supabaseNormalized = normalizePhoneNumber(supabaseNormalized)
+          sheetsNormalized = normalizePhoneNumber(sheetsNormalized)
+        }
         
         if (supabaseNormalized !== sheetsNormalized) {
           fieldConflicts.push({

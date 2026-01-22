@@ -121,11 +121,18 @@ export async function resolveContactConflicts(
         // Update in Supabase
         await contactsService.update(resolution.recordId, resolvedContact, userId)
         
-        // Get updated contact and sync to Google Sheets
-        const updated = await contactsService.getById(resolution.recordId, userId)
-        if (updated) {
-          await googleSheetsContactsService.update(updated)
+        // Construct complete contact object with resolved values to ensure both sides have identical values
+        const resolvedContactComplete: Contact = {
+          ...supabaseContact,
+          ...resolvedContact,
+          id: resolution.recordId,
+          user_id: supabaseContact.user_id,
+          created_at: supabaseContact.created_at,
+          updated_at: new Date().toISOString(),
         }
+        
+        // Sync the exact resolved values to Google Sheets
+        await googleSheetsContactsService.update(resolvedContactComplete)
       }
     } catch (error) {
       console.error(`Failed to resolve contact ${resolution.recordId}:`, error)
@@ -239,10 +246,20 @@ export async function resolveDealConflicts(
 
       if (Object.keys(resolvedDeal).length > 0 && supabaseDeal) {
         await dealsService.update(resolution.recordId, resolvedDeal, userId)
-        const updated = await dealsService.getById(resolution.recordId, userId)
-        if (updated) {
-          await googleSheetsDealsService.update(updated)
+        
+        // Construct complete deal object with resolved values to ensure both sides have identical values
+        const resolvedDealComplete: Deal = {
+          ...supabaseDeal,
+          ...resolvedDeal,
+          id: resolution.recordId,
+          user_id: supabaseDeal.user_id,
+          created_at: supabaseDeal.created_at,
+          updated_at: new Date().toISOString(),
+          contact: supabaseDeal.contact, // Preserve contact relation
         }
+        
+        // Sync the exact resolved values to Google Sheets
+        await googleSheetsDealsService.update(resolvedDealComplete)
       }
     } catch (error) {
       console.error(`Failed to resolve deal ${resolution.recordId}:`, error)
