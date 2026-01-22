@@ -171,26 +171,26 @@ class GoogleSheetsClient {
   }
 
   async appendRow(sheetName: string, values: string[]): Promise<void> {
-    const endpoint = `${this.spreadsheetId}/values/${sheetName}:append`
+    // valueInputOption must be a query parameter, not in the body
+    const endpoint = `${this.spreadsheetId}/values/${sheetName}:append?valueInputOption=USER_ENTERED`
     
     await this.request(endpoint, {
       method: 'POST',
       body: JSON.stringify({
         values: [values],
-        valueInputOption: 'USER_ENTERED',
       }),
     })
   }
 
   async updateRow(sheetName: string, rowIndex: number, values: string[]): Promise<void> {
     const range = `${sheetName}!A${rowIndex}:${String.fromCharCode(65 + values.length - 1)}${rowIndex}`
-    const endpoint = `${this.spreadsheetId}/values/${range}`
+    // valueInputOption must be a query parameter, not in the body
+    const endpoint = `${this.spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`
     
     await this.request(endpoint, {
       method: 'PUT',
       body: JSON.stringify({
         values: [values],
-        valueInputOption: 'USER_ENTERED',
       }),
     })
   }
