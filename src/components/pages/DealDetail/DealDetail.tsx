@@ -1,18 +1,22 @@
+import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { DashboardLayout } from '@/components/templates/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/atoms/Button'
 import { Badge } from '@/components/atoms/Badge'
 import { ActivityTimeline } from '@/components/organisms/ActivityTimeline'
+import { DealForm } from '@/components/molecules/DealForm'
 import { useDeal } from '@/hooks/useDeals'
-import { ArrowLeft, User, Calendar, DollarSign } from 'lucide-react'
+import { ArrowLeft, User, Calendar, DollarSign, Edit } from 'lucide-react'
 import { Icon } from '@/components/atoms/Icon'
 import { format } from 'date-fns'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 export default function DealDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { deal, isLoading } = useDeal(id!)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
   if (isLoading) {
     return (
@@ -38,14 +42,22 @@ export default function DealDetail() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/deals')}
-          className="mb-4"
-        >
-          <Icon icon={ArrowLeft} className="mr-2" size={18} />
-          Back
-        </Button>
+        <div className="flex items-center justify-between mb-4">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/deals')}
+          >
+            <Icon icon={ArrowLeft} className="mr-2" size={18} />
+            Back
+          </Button>
+          <Button
+            onClick={() => setIsEditDialogOpen(true)}
+            variant="outline"
+          >
+            <Icon icon={Edit} className="mr-2" size={18} />
+            Edit Deal
+          </Button>
+        </div>
 
         <div className="grid gap-6 md:grid-cols-3">
           <div className="md:col-span-2 space-y-6">
@@ -101,6 +113,21 @@ export default function DealDetail() {
           </div>
         </div>
       </div>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Deal</DialogTitle>
+          </DialogHeader>
+          <DealForm
+            deal={deal || null}
+            onSuccess={() => {
+              setIsEditDialogOpen(false)
+            }}
+            onCancel={() => setIsEditDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }

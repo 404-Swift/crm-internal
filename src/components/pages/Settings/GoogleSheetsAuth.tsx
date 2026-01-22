@@ -117,18 +117,12 @@ export function GoogleSheetsAuth() {
                 </p>
                 <p className="text-xs text-green-700 dark:text-green-300">
                   Your CRM data will automatically sync with Google Sheets. Write operations are enabled.
+                  Sync is permanent and will continue automatically.
                 </p>
                 {tokenInfo && (
                   <div className="mt-2 pt-2 border-t border-green-200 dark:border-green-800">
                     <p className="text-xs text-green-600 dark:text-green-400">
-                      {tokenInfo.isExpiringSoon ? (
-                        <span className="flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          Token expires in {tokenInfo.hoursUntilExpiry}h {tokenInfo.minutesUntilExpiry}m
-                        </span>
-                      ) : (
-                        `Token expires in ${tokenInfo.hoursUntilExpiry}h ${tokenInfo.minutesUntilExpiry}m`
-                      )}
+                      Access token will auto-refresh when needed. Sync remains active permanently.
                     </p>
                   </div>
                 )}

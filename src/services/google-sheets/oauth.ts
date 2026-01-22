@@ -281,9 +281,16 @@ export function clearTokens(): void {
 }
 
 /**
- * Check if user is connected (has valid tokens)
+ * Check if user is connected (has valid tokens or refresh token)
+ * Returns true if we have a refresh token, even if access token is expired
+ * (since we can refresh it automatically)
  */
 export function isConnected(): boolean {
   const tokens = getStoredTokens()
-  return tokens !== null && !isTokenExpired(tokens)
+  if (!tokens) {
+    return false
+  }
+  // If we have a refresh token, we're connected (can always get new access token)
+  // Access token expiration doesn't matter since we auto-refresh
+  return !!tokens.refreshToken
 }

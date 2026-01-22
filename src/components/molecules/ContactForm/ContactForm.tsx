@@ -1,28 +1,45 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/atoms/Button'
 import { Input } from '@/components/atoms/Input'
 import { useContacts } from '@/hooks/useContacts'
 import { contactSchema, type ContactFormData } from '@/lib/validations'
 import { CONTACT_STATUSES, CONTACT_SOURCES } from '@/lib/constants'
 import { toast } from '@/components/ui/toaster'
+import type { Contact } from '@/types/contact'
 
 interface ContactFormProps {
+  contact?: Contact | null
   onSuccess?: () => void
   onCancel?: () => void
 }
 
-export function ContactForm({ onSuccess, onCancel }: ContactFormProps) {
-  const { createContact, isCreating } = useContacts()
+export function ContactForm({ contact, onSuccess, onCancel }: ContactFormProps) {
+  const { createContact, updateContact, isCreating, isUpdating } = useContacts()
+  const isEditing = !!contact
   const [formData, setFormData] = useState<ContactFormData>({
-    email: '',
-    first_name: '',
-    last_name: '',
-    company: '',
-    phone: '',
-    source: '',
-    status: '',
+    email: contact?.email || '',
+    first_name: contact?.first_name || '',
+    last_name: contact?.last_name || '',
+    company: contact?.company || '',
+    phone: contact?.phone || '',
+    source: contact?.source || '',
+    status: contact?.status || '',
   })
   const [errors, setErrors] = useState<Partial<Record<keyof ContactFormData, string>>>({})
+
+  useEffect(() => {
+    if (contact) {
+      setFormData({
+        email: contact.email,
+        first_name: contact.first_name,
+        last_name: contact.last_name,
+        company: contact.company || '',
+        phone: contact.phone || '',
+        source: contact.source || '',
+        status: contact.status || '',
+      })
+    }
+  }, [contact])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,19 +47,24 @@ export function ContactForm({ onSuccess, onCancel }: ContactFormProps) {
 
     try {
       const validated = contactSchema.parse(formData)
-      await createContact(validated)
-      toast.success('Contact created', 'The contact has been added successfully')
+      if (isEditing && contact) {
+        await updateContact({ id: contact.id, input: validated })
+        toast.success('Contact updated', 'The contact has been updated successfully')
+      } else {
+        await createContact(validated)
+        toast.success('Contact created', 'The contact has been added successfully')
+        // Reset form only when creating
+        setFormData({
+          email: '',
+          first_name: '',
+          last_name: '',
+          company: '',
+          phone: '',
+          source: '',
+          status: '',
+        })
+      }
       onSuccess?.()
-      // Reset form
-      setFormData({
-        email: '',
-        first_name: '',
-        last_name: '',
-        company: '',
-        phone: '',
-        source: '',
-        status: '',
-      })
     } catch (err: any) {
       if (err.errors) {
         const fieldErrors: Partial<Record<keyof ContactFormData, string>> = {}
@@ -53,7 +75,10 @@ export function ContactForm({ onSuccess, onCancel }: ContactFormProps) {
         })
         setErrors(fieldErrors)
       } else {
-        toast.error('Failed to create contact', err.message || 'An error occurred')
+        toast.error(
+          isEditing ? 'Failed to update contact' : 'Failed to create contact',
+          err.message || 'An error occurred'
+        )
       }
     }
   }
@@ -194,8 +219,14 @@ export function ContactForm({ onSuccess, onCancel }: ContactFormProps) {
             Cancel
           </Button>
         )}
-        <Button type="submit" disabled={isCreating}>
-          {isCreating ? 'Creating...' : 'Create Contact'}
+        <Button type="submit" disabled={isCreating || isUpdating}>
+          {isCreating || isUpdating
+            ? isEditing
+              ? 'Updating...'
+              : 'Creating...'
+            : isEditing
+            ? 'Update Contact'
+            : 'Create Contact'}
         </Button>
       </div>
     </form>

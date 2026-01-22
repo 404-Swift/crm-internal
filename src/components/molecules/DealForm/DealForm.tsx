@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/atoms/Button'
 import { Input } from '@/components/atoms/Input'
 import { useDeals } from '@/hooks/useDeals'
@@ -6,24 +6,40 @@ import { useContacts } from '@/hooks/useContacts'
 import { dealSchema, type DealFormData } from '@/lib/validations'
 import { DEAL_STAGES } from '@/lib/constants'
 import { toast } from '@/components/ui/toaster'
+import type { Deal } from '@/types/deal'
 
 interface DealFormProps {
+  deal?: Deal | null
   onSuccess?: () => void
   onCancel?: () => void
 }
 
-export function DealForm({ onSuccess, onCancel }: DealFormProps) {
-  const { createDeal, isCreating } = useDeals()
+export function DealForm({ deal, onSuccess, onCancel }: DealFormProps) {
+  const { createDeal, updateDeal, isCreating, isUpdating } = useDeals()
   const { contacts, isLoading: contactsLoading } = useContacts()
+  const isEditing = !!deal
   const [formData, setFormData] = useState<Omit<DealFormData, 'contact_id'> & { contact_id: string }>({
-    title: '',
-    contact_id: '',
-    amount: 0,
-    stage: 'prospecting',
-    probability: 50,
-    expected_close_date: '',
+    title: deal?.title || '',
+    contact_id: deal?.contact_id || '',
+    amount: deal?.amount || 0,
+    stage: deal?.stage || 'prospecting',
+    probability: deal?.probability || 50,
+    expected_close_date: deal?.expected_close_date || '',
   })
   const [errors, setErrors] = useState<Partial<Record<keyof DealFormData, string>>>({})
+
+  useEffect(() => {
+    if (deal) {
+      setFormData({
+        title: deal.title,
+        contact_id: deal.contact_id,
+        amount: deal.amount,
+        stage: deal.stage,
+        probability: deal.probability,
+        expected_close_date: deal.expected_close_date || '',
+      })
+    }
+  }, [deal])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,18 +56,23 @@ export function DealForm({ onSuccess, onCancel }: DealFormProps) {
         amount: Number(formData.amount),
         probability: Number(formData.probability),
       })
-      await createDeal(validated)
-      toast.success('Deal created', 'The deal has been added successfully')
+      if (isEditing && deal) {
+        await updateDeal({ id: deal.id, input: validated })
+        toast.success('Deal updated', 'The deal has been updated successfully')
+      } else {
+        await createDeal(validated)
+        toast.success('Deal created', 'The deal has been added successfully')
+        // Reset form only when creating
+        setFormData({
+          title: '',
+          contact_id: '',
+          amount: 0,
+          stage: 'prospecting',
+          probability: 50,
+          expected_close_date: '',
+        })
+      }
       onSuccess?.()
-      // Reset form
-      setFormData({
-        title: '',
-        contact_id: '',
-        amount: 0,
-        stage: 'prospecting',
-        probability: 50,
-        expected_close_date: '',
-      })
     } catch (err: any) {
       if (err.errors) {
         const fieldErrors: Partial<Record<keyof DealFormData, string>> = {}
@@ -62,7 +83,10 @@ export function DealForm({ onSuccess, onCancel }: DealFormProps) {
         })
         setErrors(fieldErrors)
       } else {
-        toast.error('Failed to create deal', err.message || 'An error occurred')
+        toast.error(
+          isEditing ? 'Failed to update deal' : 'Failed to create deal',
+          err.message || 'An error occurred'
+        )
       }
     }
   }
@@ -201,8 +225,14 @@ export function DealForm({ onSuccess, onCancel }: DealFormProps) {
             Cancel
           </Button>
         )}
-        <Button type="submit" disabled={isCreating || contacts.length === 0}>
-          {isCreating ? 'Creating...' : 'Create Deal'}
+        <Button type="submit" disabled={isCreating || isUpdating || (!isEditing && contacts.length === 0)}>
+          {isCreating || isUpdating
+            ? isEditing
+              ? 'Updating...'
+              : 'Creating...'
+            : isEditing
+            ? 'Update Deal'
+            : 'Create Deal'}
         </Button>
       </div>
     </form>

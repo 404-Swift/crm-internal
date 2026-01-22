@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { DashboardLayout } from '@/components/templates/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -5,14 +6,17 @@ import { Button } from '@/components/atoms/Button'
 import { Badge } from '@/components/atoms/Badge'
 import { Avatar } from '@/components/atoms/Avatar'
 import { ActivityTimeline } from '@/components/organisms/ActivityTimeline'
+import { ContactForm } from '@/components/molecules/ContactForm'
 import { useContact } from '@/hooks/useContacts'
-import { ArrowLeft, Mail, Phone, Building } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, Building, Edit } from 'lucide-react'
 import { Icon } from '@/components/atoms/Icon'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 export default function ContactDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { contact, isLoading } = useContact(id!)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
   if (isLoading) {
     return (
@@ -41,14 +45,22 @@ export default function ContactDetail() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/contacts')}
-          className="mb-4"
-        >
-          <Icon icon={ArrowLeft} className="mr-2" size={18} />
-          Back
-        </Button>
+        <div className="flex items-center justify-between mb-4">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/contacts')}
+          >
+            <Icon icon={ArrowLeft} className="mr-2" size={18} />
+            Back
+          </Button>
+          <Button
+            onClick={() => setIsEditDialogOpen(true)}
+            variant="outline"
+          >
+            <Icon icon={Edit} className="mr-2" size={18} />
+            Edit Contact
+          </Button>
+        </div>
 
         <div className="grid gap-6 md:grid-cols-3">
           <div className="md:col-span-2 space-y-6">
@@ -103,6 +115,21 @@ export default function ContactDetail() {
           </div>
         </div>
       </div>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Contact</DialogTitle>
+          </DialogHeader>
+          <ContactForm
+            contact={contact || null}
+            onSuccess={() => {
+              setIsEditDialogOpen(false)
+            }}
+            onCancel={() => setIsEditDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }
