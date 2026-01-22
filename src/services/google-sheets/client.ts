@@ -69,17 +69,15 @@ class GoogleSheetsClient {
         throw new Error('Write operations require OAuth2 authentication. Please connect Google Sheets in Settings.')
       }
     } else if (isReadOperation) {
-      // Read operations can use API key or OAuth token
-      if (this.apiKey) {
+      // Read operations: prefer OAuth token if available (has proper permissions), fallback to API key
+      accessToken = await this.getAccessToken()
+      if (accessToken) {
+        url.searchParams.set('access_token', accessToken)
+      } else if (this.apiKey) {
+        // Fallback to API key if OAuth not available
         url.searchParams.set('key', this.apiKey)
       } else {
-        // Try OAuth token as fallback
-        accessToken = await this.getAccessToken()
-        if (accessToken) {
-          url.searchParams.set('access_token', accessToken)
-        } else {
-          throw new Error('Google Sheets API requires either an API key or OAuth2 access token')
-        }
+        throw new Error('Google Sheets API requires either an API key or OAuth2 access token')
       }
     }
 
@@ -91,17 +89,42 @@ class GoogleSheetsClient {
       },
     })
 
-    // Handle 401 Unauthorized - token might be expired
-    if (response.status === 401 && retryOnAuthError && accessToken) {
+    // Handle 401/403 Unauthorized/Forbidden - token might be expired or API key doesn't have permission
+    if ((response.status === 401 || response.status === 403) && retryOnAuthError) {
+      // If we used API key and got 403, try OAuth token instead
+      if (response.status === 403 && !accessToken && this.apiKey) {
+        const oauthToken = await this.getAccessToken()
+        if (oauthToken) {
+          // Retry with OAuth token
+          url.searchParams.delete('key')
+          url.searchParams.set('access_token', oauthToken)
+          return fetch(url.toString(), {
+            ...options,
+            headers: {
+              'Content-Type': 'application/json',
+              ...options.headers,
+            },
+          }).then(async (retryResponse) => {
+            if (!retryResponse.ok) {
+              const error = await retryResponse.json().catch(() => ({ error: { message: retryResponse.statusText } }))
+              throw new Error(error.error?.message || `Google Sheets API error: ${retryResponse.statusText}`)
+            }
+            return retryResponse
+          })
+        }
+      }
+      
       // Try refreshing token and retry once
-      try {
-        const { refreshToken } = await import('./oauth')
-        await refreshToken()
-        // Retry the request with new token
-        return this.request(endpoint, options, false) // Don't retry again
-      } catch (refreshError) {
-        console.error('Failed to refresh token:', refreshError)
-        // Fall through to error handling
+      if (accessToken) {
+        try {
+          const { refreshToken } = await import('./oauth')
+          await refreshToken()
+          // Retry the request with new token
+          return this.request(endpoint, options, false) // Don't retry again
+        } catch (refreshError) {
+          console.error('Failed to refresh token:', refreshError)
+          // Fall through to error handling
+        }
       }
     }
 
