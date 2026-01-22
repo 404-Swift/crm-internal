@@ -60,11 +60,18 @@ class GoogleSheetsClient {
     // For read operations, prefer API key if available
     let accessToken: string | null = null
     
+    // Prepare headers
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    }
+
     if (isWriteOperation) {
       // Write operations require OAuth token
       accessToken = await this.getAccessToken()
       if (accessToken) {
-        url.searchParams.set('access_token', accessToken)
+        // Use Authorization header for OAuth tokens (recommended)
+        headers['Authorization'] = `Bearer ${accessToken}`
       } else {
         throw new Error('Write operations require OAuth2 authentication. Please connect Google Sheets in Settings.')
       }
@@ -72,7 +79,8 @@ class GoogleSheetsClient {
       // Read operations: prefer OAuth token if available (has proper permissions), fallback to API key
       accessToken = await this.getAccessToken()
       if (accessToken) {
-        url.searchParams.set('access_token', accessToken)
+        // Use Authorization header for OAuth tokens (recommended)
+        headers['Authorization'] = `Bearer ${accessToken}`
       } else if (this.apiKey) {
         // Fallback to API key if OAuth not available
         url.searchParams.set('key', this.apiKey)
@@ -83,10 +91,7 @@ class GoogleSheetsClient {
 
     const response = await fetch(url.toString(), {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
     })
 
     // Handle 401/403 Unauthorized/Forbidden - token might be expired or API key doesn't have permission
@@ -95,15 +100,16 @@ class GoogleSheetsClient {
       if (response.status === 403 && !accessToken && this.apiKey) {
         const oauthToken = await this.getAccessToken()
         if (oauthToken) {
-          // Retry with OAuth token
+          // Retry with OAuth token using Authorization header
           url.searchParams.delete('key')
-          url.searchParams.set('access_token', oauthToken)
+          const retryHeaders: HeadersInit = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${oauthToken}`,
+            ...options.headers,
+          }
           return fetch(url.toString(), {
             ...options,
-            headers: {
-              'Content-Type': 'application/json',
-              ...options.headers,
-            },
+            headers: retryHeaders,
           }).then(async (retryResponse) => {
             if (!retryResponse.ok) {
               const error = await retryResponse.json().catch(() => ({ error: { message: retryResponse.statusText } }))
