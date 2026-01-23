@@ -137,22 +137,33 @@ export const dealsService = {
       .update(update as any)
       .eq('id', id)
       .eq('user_id', userId)
-      .select(`
-        *,
-        contact:contacts (
-          first_name,
-          last_name,
-          email,
-          company
-        )
-      `)
+      .select('*')
       .single()
 
     if (error) throw error
     
+    // Fetch contact separately if contact_id exists
+    let contact: Deal['contact'] = null
+    if (data.contact_id) {
+      try {
+        const { data: contactData } = await supabase
+          .from('contacts')
+          .select('first_name, last_name, email, company')
+          .eq('id', data.contact_id)
+          .single()
+        
+        if (contactData) {
+          contact = contactData as Deal['contact']
+        }
+      } catch (contactError) {
+        // Contact fetch failed, but don't fail the whole update
+        console.warn(`Failed to fetch contact for deal ${id}:`, contactError)
+      }
+    }
+    
     const deal = {
       ...(data as any),
-      contact: (data as any).contact as Deal['contact'],
+      contact,
     } as Deal
 
     // Update Google Sheets immediately (source of truth)
