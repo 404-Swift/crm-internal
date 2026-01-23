@@ -41,7 +41,7 @@ export function Header() {
             <Icon icon={showMobileNav ? X : Menu} size={20} />
           </button>
           <Link to="/dashboard" className="flex items-center space-x-2 min-w-0">
-            <span className="text-xl font-semibold">CRM</span>
+            <span className="text-xl font-semibold">404Swift</span>
           </Link>
         </div>
 
