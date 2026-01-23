@@ -139,19 +139,23 @@ export const getPipelinePieConfig = (deals: Deal[]): EChartsOption => {
       },
     },
     legend: {
-      orient: 'vertical',
-      left: 'left',
-      bottom: 'middle',
+      orient: 'horizontal',
+      bottom: 0,
+      left: 'center',
       textStyle: {
         color: '#a3a3a3',
         fontSize: 11,
       },
+      itemWidth: 14,
+      itemHeight: 14,
+      itemGap: 10,
     },
     series: [
       {
         name: 'Pipeline',
         type: 'pie',
-        radius: ['40%', '70%'],
+        radius: ['35%', '65%'],
+        center: ['50%', '45%'],
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 8,
@@ -348,19 +352,23 @@ export const getContactsBySourceConfig = (contacts: Contact[]): EChartsOption =>
       },
     },
     legend: {
-      orient: 'vertical',
-      left: 'left',
-      bottom: 'middle',
+      orient: 'horizontal',
+      bottom: 0,
+      left: 'center',
       textStyle: {
         color: '#a3a3a3',
         fontSize: 11,
       },
+      itemWidth: 14,
+      itemHeight: 14,
+      itemGap: 10,
     },
     series: [
       {
         name: 'Contacts by Source',
         type: 'pie',
-        radius: ['40%', '70%'],
+        radius: ['35%', '65%'],
+        center: ['50%', '45%'],
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 8,
