@@ -127,6 +127,13 @@ export const getPipelinePieConfig = (deals: Deal[]): EChartsOption => {
   return {
     backgroundColor: 'transparent',
     textStyle: darkTextStyle,
+    grid: {
+      left: '5%',
+      right: '5%',
+      top: '10%',
+      bottom: '25%',
+      containLabel: false,
+    },
     tooltip: {
       trigger: 'item',
       formatter: '{b}: {c} ({d}%)',
@@ -140,7 +147,7 @@ export const getPipelinePieConfig = (deals: Deal[]): EChartsOption => {
     },
     legend: {
       orient: 'horizontal',
-      bottom: 0,
+      bottom: 10,
       left: 'center',
       textStyle: {
         color: '#a3a3a3',
@@ -154,8 +161,8 @@ export const getPipelinePieConfig = (deals: Deal[]): EChartsOption => {
       {
         name: 'Pipeline',
         type: 'pie',
-        radius: ['35%', '65%'],
-        center: ['50%', '45%'],
+        radius: ['30%', '60%'],
+        center: ['50%', '40%'],
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 8,
@@ -340,6 +347,13 @@ export const getContactsBySourceConfig = (contacts: Contact[]): EChartsOption =>
   return {
     backgroundColor: 'transparent',
     textStyle: darkTextStyle,
+    grid: {
+      left: '5%',
+      right: '5%',
+      top: '10%',
+      bottom: '25%',
+      containLabel: false,
+    },
     tooltip: {
       trigger: 'item',
       formatter: '{b}: {c} ({d}%)',
@@ -353,7 +367,7 @@ export const getContactsBySourceConfig = (contacts: Contact[]): EChartsOption =>
     },
     legend: {
       orient: 'horizontal',
-      bottom: 0,
+      bottom: 10,
       left: 'center',
       textStyle: {
         color: '#a3a3a3',
@@ -367,8 +381,8 @@ export const getContactsBySourceConfig = (contacts: Contact[]): EChartsOption =>
       {
         name: 'Contacts by Source',
         type: 'pie',
-        radius: ['35%', '65%'],
-        center: ['50%', '45%'],
+        radius: ['30%', '60%'],
+        center: ['50%', '40%'],
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 8,
