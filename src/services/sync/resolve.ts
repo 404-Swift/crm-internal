@@ -31,8 +31,68 @@ export async function resolveContactConflicts(
       const supabaseContact = conflict.supabaseRecord
       const sheetsContact = conflict.sheetsRecord || sheetsMap.get(resolution.recordId)
 
-      if (resolution.action === 'use-sheets' && sheetsContact) {
-        // Use entire sheets record
+      // Check for new records in Sheets FIRST, before general use-sheets case
+      if (conflict.isNewInSheets && sheetsContact && resolution.action === 'use-sheets') {
+        // New record in Sheets - create in Supabase with same ID
+        const { supabase } = await import('../supabase/client')
+        const now = new Date().toISOString()
+        const { data: insertedContact, error } = await supabase
+          .from('contacts')
+          .insert({
+            id: sheetsContact.id, // Preserve ID from Sheets
+            email: sheetsContact.email,
+            first_name: sheetsContact.first_name,
+            last_name: sheetsContact.last_name,
+            company: sheetsContact.company,
+            phone: sheetsContact.phone,
+            source: sheetsContact.source,
+            status: sheetsContact.status,
+            user_id: userId,
+            created_at: sheetsContact.created_at || now,
+            updated_at: sheetsContact.updated_at || now,
+          } as any)
+          .select()
+          .single()
+        
+        if (error) {
+          // If ID conflict, try without ID (let Supabase generate)
+          if (error.code === '23505') {
+            const created = await contactsService.create({
+              email: sheetsContact.email,
+              first_name: sheetsContact.first_name,
+              last_name: sheetsContact.last_name,
+              company: sheetsContact.company,
+              phone: sheetsContact.phone,
+              source: sheetsContact.source,
+              status: sheetsContact.status,
+            }, userId)
+            // Update Sheets row with new Supabase ID
+            try {
+              await googleSheetsContactsService.update({ ...created, id: sheetsContact.id } as Contact, false)
+            } catch (syncError) {
+              console.error(`Failed to sync contact to Google Sheets after creation:`, syncError)
+              // Don't throw - the record was created in Supabase
+            }
+          } else {
+            const errorMessage = error.message || String(error)
+            throw new Error(`Failed to create contact in Supabase: ${errorMessage}`)
+          }
+        } else if (insertedContact) {
+          // Successfully created - ensure Sheets has the correct data
+          try {
+            await googleSheetsContactsService.update(insertedContact as Contact, false)
+          } catch (syncError) {
+            console.warn(`Failed to sync contact back to Google Sheets:`, syncError)
+            // Don't throw - the record was created successfully
+          }
+        }
+        continue
+      } else if (conflict.isNewInSupabase && supabaseContact && resolution.action === 'use-supabase') {
+        // New record in Supabase - sync to Sheets
+        await googleSheetsContactsService.create(supabaseContact)
+        continue
+      } else if (resolution.action === 'use-sheets' && sheetsContact) {
+        // Use entire sheets record (for existing records with differences)
         resolvedContact = {
           email: sheetsContact.email,
           first_name: sheetsContact.first_name,
@@ -70,51 +130,6 @@ export async function resolveContactConflicts(
             (resolvedContact as any)[key] = (baseContact as any)[key]
           }
         })
-      } else if (conflict.isNewInSheets && sheetsContact && resolution.action === 'use-sheets') {
-        // New record in Sheets - create in Supabase with same ID
-        const { supabase } = await import('../supabase/client')
-        const now = new Date().toISOString()
-        const { error } = await supabase
-          .from('contacts')
-          .insert({
-            id: sheetsContact.id, // Preserve ID from Sheets
-            email: sheetsContact.email,
-            first_name: sheetsContact.first_name,
-            last_name: sheetsContact.last_name,
-            company: sheetsContact.company,
-            phone: sheetsContact.phone,
-            source: sheetsContact.source,
-            status: sheetsContact.status,
-            user_id: userId,
-            created_at: sheetsContact.created_at || now,
-            updated_at: sheetsContact.updated_at || now,
-          } as any)
-          .select()
-          .single()
-        
-        if (error) {
-          // If ID conflict, try without ID (let Supabase generate)
-          if (error.code === '23505') {
-            const created = await contactsService.create({
-              email: sheetsContact.email,
-              first_name: sheetsContact.first_name,
-              last_name: sheetsContact.last_name,
-              company: sheetsContact.company,
-              phone: sheetsContact.phone,
-              source: sheetsContact.source,
-              status: sheetsContact.status,
-            }, userId)
-            // Update Sheets row with new Supabase ID
-            await googleSheetsContactsService.update({ ...created, id: sheetsContact.id } as Contact)
-          } else {
-            throw error
-          }
-        }
-        continue
-      } else if (conflict.isNewInSupabase && supabaseContact && resolution.action === 'use-supabase') {
-        // New record in Supabase - sync to Sheets
-        await googleSheetsContactsService.create(supabaseContact)
-        continue
       }
 
       if (Object.keys(resolvedContact).length > 0 && supabaseContact) {
@@ -167,7 +182,93 @@ export async function resolveDealConflicts(
       const supabaseDeal = conflict.supabaseRecord
       const sheetsDeal = conflict.sheetsRecord || sheetsMap.get(resolution.recordId)
 
-      if (resolution.action === 'use-sheets' && sheetsDeal) {
+      // Check for new records in Sheets FIRST, before general use-sheets case
+      if (conflict.isNewInSheets && sheetsDeal && resolution.action === 'use-sheets') {
+        // New record in Sheets - create in Supabase with same ID
+        const { supabase } = await import('../supabase/client')
+        const now = new Date().toISOString()
+        const { data: insertedDeal, error } = await supabase
+          .from('deals')
+          .insert({
+            id: sheetsDeal.id, // Preserve ID from Sheets
+            title: sheetsDeal.title,
+            contact_id: sheetsDeal.contact_id,
+            amount: sheetsDeal.amount,
+            stage: sheetsDeal.stage,
+            probability: sheetsDeal.probability,
+            expected_close_date: sheetsDeal.expected_close_date,
+            user_id: userId,
+            created_at: sheetsDeal.created_at || now,
+            updated_at: sheetsDeal.updated_at || now,
+          } as any)
+          .select('*')
+          .single()
+        
+        if (error) {
+          // If ID conflict, try without ID
+          if (error.code === '23505') {
+            const created = await dealsService.create({
+              title: sheetsDeal.title,
+              contact_id: sheetsDeal.contact_id,
+              amount: sheetsDeal.amount,
+              stage: sheetsDeal.stage,
+              probability: sheetsDeal.probability,
+              expected_close_date: sheetsDeal.expected_close_date,
+            }, userId)
+            // Update Sheets row with new Supabase ID
+            try {
+              await googleSheetsDealsService.update({ ...created, id: sheetsDeal.id } as Deal, false)
+            } catch (syncError) {
+              console.error(`Failed to sync deal to Google Sheets after creation:`, syncError)
+              const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
+              throw new Error(`Failed to sync deal to Google Sheets: ${errorMessage}`)
+            }
+          } else {
+            const errorMessage = error.message || String(error)
+            throw new Error(`Failed to create deal in Supabase: ${errorMessage}`)
+          }
+        } else if (insertedDeal) {
+          // Successfully created - ensure Sheets has the correct data
+          try {
+            // Fetch contact separately if needed
+            let contact: Deal['contact'] = undefined
+            const dealData = insertedDeal as any
+            if (dealData.contact_id) {
+              const { data: contactData } = await supabase
+                .from('contacts')
+                .select('first_name, last_name, email, company')
+                .eq('id', dealData.contact_id)
+                .single()
+              
+              if (contactData) {
+                contact = contactData as Deal['contact']
+              }
+            }
+            
+            const completeDeal: Deal = {
+              ...dealData,
+              contact,
+            } as Deal
+            
+            // Update Sheets to ensure it has the exact same data as Supabase
+            await googleSheetsDealsService.update(completeDeal, false)
+          } catch (syncError) {
+            console.warn(`Failed to sync deal back to Google Sheets:`, syncError)
+            // Don't throw - the record was created successfully
+          }
+        }
+        continue
+      } else if (conflict.isNewInSupabase && supabaseDeal && resolution.action === 'use-supabase') {
+        // New record in Supabase - sync to Sheets
+        try {
+          await googleSheetsDealsService.create(supabaseDeal, false)
+        } catch (syncError) {
+          console.error(`Failed to sync new deal ${resolution.recordId} to Google Sheets:`, syncError)
+          const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
+          throw new Error(`Failed to sync deal to Google Sheets: ${errorMessage}`)
+        }
+        continue
+      } else if (resolution.action === 'use-sheets' && sheetsDeal) {
         // Extract only the fields that can be updated (exclude relations and metadata)
         const { contact, created_at, updated_at, user_id, id, ...dealData } = sheetsDeal as any
         resolvedDeal = {
@@ -205,70 +306,6 @@ export async function resolveDealConflicts(
             (resolvedDeal as any)[key] = (baseDeal as any)[key]
           }
         })
-      } else if (conflict.isNewInSheets && sheetsDeal && resolution.action === 'use-sheets') {
-        // New record in Sheets - create in Supabase with same ID
-        const { supabase } = await import('../supabase/client')
-        const now = new Date().toISOString()
-        const { error } = await supabase
-          .from('deals')
-          .insert({
-            id: sheetsDeal.id, // Preserve ID from Sheets
-            title: sheetsDeal.title,
-            contact_id: sheetsDeal.contact_id,
-            amount: sheetsDeal.amount,
-            stage: sheetsDeal.stage,
-            probability: sheetsDeal.probability,
-            expected_close_date: sheetsDeal.expected_close_date,
-            user_id: userId,
-            created_at: sheetsDeal.created_at || now,
-            updated_at: sheetsDeal.updated_at || now,
-          } as any)
-          .select(`
-            *,
-            contact:contacts (
-              first_name,
-              last_name,
-              email,
-              company
-            )
-          `)
-          .single()
-        
-        if (error) {
-          // If ID conflict, try without ID
-          if (error.code === '23505') {
-            const created = await dealsService.create({
-              title: sheetsDeal.title,
-              contact_id: sheetsDeal.contact_id,
-              amount: sheetsDeal.amount,
-              stage: sheetsDeal.stage,
-              probability: sheetsDeal.probability,
-              expected_close_date: sheetsDeal.expected_close_date,
-            }, userId)
-            // Update Sheets row with new Supabase ID
-            try {
-              await googleSheetsDealsService.update({ ...created, id: sheetsDeal.id } as Deal, false)
-            } catch (syncError) {
-              console.error(`Failed to sync deal to Google Sheets after creation:`, syncError)
-              const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
-              throw new Error(`Failed to sync deal to Google Sheets: ${errorMessage}`)
-            }
-          } else {
-            const errorMessage = error.message || String(error)
-            throw new Error(`Failed to create deal in Supabase: ${errorMessage}`)
-          }
-        }
-        continue
-      } else if (conflict.isNewInSupabase && supabaseDeal && resolution.action === 'use-supabase') {
-        // New record in Supabase - sync to Sheets
-        try {
-          await googleSheetsDealsService.create(supabaseDeal, false)
-        } catch (syncError) {
-          console.error(`Failed to sync new deal ${resolution.recordId} to Google Sheets:`, syncError)
-          const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
-          throw new Error(`Failed to sync deal to Google Sheets: ${errorMessage}`)
-        }
-        continue
       }
 
       if (Object.keys(resolvedDeal).length > 0 && supabaseDeal) {
@@ -357,8 +394,9 @@ export async function resolveActivityConflicts(
       if (conflict.isNewInSheets && sheetsActivity && resolution.action === 'use-sheets') {
         // New in Sheets - create in Supabase with same ID
         const { supabase } = await import('../supabase/client')
-        const { error } = await supabase
-          .from('activities')
+        const now = new Date().toISOString()
+        const { data: insertedActivity, error } = await (supabase
+          .from('activities') as any)
           .insert({
             id: sheetsActivity.id,
             type: sheetsActivity.type,
@@ -366,33 +404,78 @@ export async function resolveActivityConflicts(
             deal_id: sheetsActivity.deal_id,
             description: sheetsActivity.description,
             user_id: userId,
-            created_at: sheetsActivity.created_at || new Date().toISOString(),
+            created_at: sheetsActivity.created_at || now,
           } as any)
-          .select(`
-            *,
-            contact:contacts (
-              first_name,
-              last_name
-            ),
-            deal:deals (
-              title
-            )
-          `)
+          .select('*')
           .single()
         
         if (error) {
-          // If ID conflict, try without ID
+          // If ID conflict, try without ID (let Supabase generate)
           if (error.code === '23505') {
-            await activitiesService.create({
+            const created = await activitiesService.create({
               type: sheetsActivity.type,
               contact_id: sheetsActivity.contact_id,
               deal_id: sheetsActivity.deal_id,
               description: sheetsActivity.description,
             }, userId)
+            // Update Sheets row with new Supabase ID to keep them in sync
+            // Note: Activities service doesn't have update, so we'll create it (it will skip if exists)
+            try {
+              await googleSheetsActivitiesService.create({ ...created, id: sheetsActivity.id } as Activity, false)
+            } catch (syncError) {
+              console.error(`Failed to sync activity to Google Sheets after creation:`, syncError)
+              // Don't throw - the record was created in Supabase, which is the main goal
+            }
           } else {
-            throw error
+            const errorMessage = error.message || String(error)
+            throw new Error(`Failed to create activity in Supabase: ${errorMessage}`)
+          }
+        } else if (insertedActivity) {
+          // Successfully created - ensure Sheets has the correct data
+          try {
+            // Fetch relations separately if needed
+            let contact: Activity['contact'] = undefined
+            let deal: Activity['deal'] = undefined
+            
+            const activityData = insertedActivity as any
+            if (activityData && activityData.contact_id) {
+              const { data: contactData } = await supabase
+                .from('contacts')
+                .select('first_name, last_name')
+                .eq('id', activityData.contact_id)
+                .single()
+              
+              if (contactData) {
+                contact = contactData as Activity['contact']
+              }
+            }
+            
+            if (activityData && activityData.deal_id) {
+              const { data: dealData } = await supabase
+                .from('deals')
+                .select('title')
+                .eq('id', activityData.deal_id)
+                .single()
+              
+              if (dealData) {
+                deal = dealData as Activity['deal']
+              }
+            }
+            
+            const completeActivity: Activity = {
+              ...activityData,
+              contact,
+              deal,
+            } as Activity
+            
+            // Activities service doesn't have update, so we'll create it (it will skip if exists)
+            await googleSheetsActivitiesService.create(completeActivity, false)
+          } catch (syncError) {
+            console.warn(`Failed to sync activity back to Google Sheets:`, syncError)
+            // Don't throw - the record was created successfully
           }
         }
+        continue
       } else if (conflict.isNewInSupabase && supabaseActivity && resolution.action === 'use-supabase') {
         // New in Supabase - sync to Sheets
         try {

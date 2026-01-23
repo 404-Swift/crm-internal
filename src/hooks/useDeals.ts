@@ -1,15 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { dealsService } from '@/services/supabase/deals'
+import { googleSheetsReadService } from '@/services/google-sheets/read'
 import type { Deal, DealFormInput } from '@/types/deal'
 import { useAuth } from './useAuth'
+import { useDataSource } from './useDataSource'
 
 export function useDeals() {
   const { user } = useAuth()
+  const { sourceOfTruth } = useDataSource()
   const queryClient = useQueryClient()
 
   const { data: deals = [], isLoading, error } = useQuery<Deal[]>({
-    queryKey: ['deals', user?.id],
-    queryFn: () => dealsService.getAll(user!.id),
+    queryKey: ['deals', user?.id, sourceOfTruth],
+    queryFn: async () => {
+      if (sourceOfTruth === 'google_sheets') {
+        return googleSheetsReadService.getAllDeals()
+      }
+      return dealsService.getAll(user!.id)
+    },
     enabled: !!user,
   })
 
@@ -51,10 +59,17 @@ export function useDeals() {
 
 export function useDeal(id: string) {
   const { user } = useAuth()
+  const { sourceOfTruth } = useDataSource()
 
   const { data: deal, isLoading, error } = useQuery<Deal | null>({
-    queryKey: ['deal', id, user?.id],
-    queryFn: () => dealsService.getById(id, user!.id),
+    queryKey: ['deal', id, user?.id, sourceOfTruth],
+    queryFn: async () => {
+      if (sourceOfTruth === 'google_sheets') {
+        const allDeals = await googleSheetsReadService.getAllDeals()
+        return allDeals.find(d => d.id === id) || null
+      }
+      return dealsService.getById(id, user!.id)
+    },
     enabled: !!user && !!id,
   })
 
@@ -63,10 +78,17 @@ export function useDeal(id: string) {
 
 export function useDealsByStage(stage: string) {
   const { user } = useAuth()
+  const { sourceOfTruth } = useDataSource()
 
   const { data: deals = [], isLoading, error } = useQuery<Deal[]>({
-    queryKey: ['deals', stage, user?.id],
-    queryFn: () => dealsService.getByStage(stage, user!.id),
+    queryKey: ['deals', stage, user?.id, sourceOfTruth],
+    queryFn: async () => {
+      if (sourceOfTruth === 'google_sheets') {
+        const allDeals = await googleSheetsReadService.getAllDeals()
+        return allDeals.filter(d => d.stage === stage)
+      }
+      return dealsService.getByStage(stage, user!.id)
+    },
     enabled: !!user && !!stage,
   })
 

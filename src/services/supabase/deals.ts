@@ -2,6 +2,7 @@ import { supabase } from './client'
 import type { Deal, DealFormInput } from '@/types/deal'
 import type { Database } from './types'
 import { googleSheetsDealsService } from '../google-sheets/deals'
+import { getSourceOfTruth } from './data-source-config'
 
 type DealInsert = Database['public']['Tables']['deals']['Insert']
 type DealUpdate = Database['public']['Tables']['deals']['Update']
@@ -109,13 +110,16 @@ export const dealsService = {
       contact: (data as any).contact as Deal['contact'],
     } as Deal
 
-    // Write to Google Sheets immediately (source of truth)
-    // Await to ensure sync completes before returning
-    try {
-      await googleSheetsDealsService.create(deal, false)
-    } catch (err) {
-      console.error('Google Sheets sync failed:', err)
-      // Don't throw - allow Supabase write to succeed, but log the error
+    // Write to Google Sheets immediately only if Supabase is source of truth
+    // If Google Sheets is source of truth, don't auto-sync (it's just a backup)
+    const sourceOfTruth = await getSourceOfTruth()
+    if (sourceOfTruth === 'supabase') {
+      try {
+        await googleSheetsDealsService.create(deal, false)
+      } catch (err) {
+        console.error('Google Sheets sync failed:', err)
+        // Don't throw - allow Supabase write to succeed, but log the error
+      }
     }
 
     return deal
@@ -170,13 +174,16 @@ export const dealsService = {
       contact,
     } as Deal
 
-    // Update Google Sheets immediately (source of truth)
-    // Await to ensure sync completes before returning
-    try {
-      await googleSheetsDealsService.update(deal, false)
-    } catch (err) {
-      console.error('Google Sheets sync failed:', err)
-      // Don't throw - allow Supabase write to succeed, but log the error
+    // Update Google Sheets immediately only if Supabase is source of truth
+    // If Google Sheets is source of truth, don't auto-sync (it's just a backup)
+    const sourceOfTruth = await getSourceOfTruth()
+    if (sourceOfTruth === 'supabase') {
+      try {
+        await googleSheetsDealsService.update(deal, false)
+      } catch (err) {
+        console.error('Google Sheets sync failed:', err)
+        // Don't throw - allow Supabase write to succeed, but log the error
+      }
     }
 
     return deal

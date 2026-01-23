@@ -2,6 +2,7 @@ import { supabase } from './client'
 import type { Activity, ActivityFormInput } from '@/types/activity'
 import type { Database } from './types'
 import { googleSheetsActivitiesService } from '../google-sheets/activities'
+import { getSourceOfTruth } from './data-source-config'
 
 type ActivityInsert = Database['public']['Tables']['activities']['Insert']
 
@@ -111,13 +112,16 @@ export const activitiesService = {
       deal: (data as any).deal as Activity['deal'],
     } as Activity
 
-    // Write to Google Sheets immediately (source of truth)
-    // Await to ensure sync completes before returning
-    try {
-      await googleSheetsActivitiesService.create(activity, false)
-    } catch (err) {
-      console.error('Google Sheets sync failed:', err)
-      // Don't throw - allow Supabase write to succeed, but log the error
+    // Write to Google Sheets immediately only if Supabase is source of truth
+    // If Google Sheets is source of truth, don't auto-sync (it's just a backup)
+    const sourceOfTruth = await getSourceOfTruth()
+    if (sourceOfTruth === 'supabase') {
+      try {
+        await googleSheetsActivitiesService.create(activity, false)
+      } catch (err) {
+        console.error('Google Sheets sync failed:', err)
+        // Don't throw - allow Supabase write to succeed, but log the error
+      }
     }
 
     return activity

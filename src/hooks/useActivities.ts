@@ -1,15 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { activitiesService } from '@/services/supabase/activities'
+import { googleSheetsReadService } from '@/services/google-sheets/read'
 import type { Activity, ActivityFormInput } from '@/types/activity'
 import { useAuth } from './useAuth'
+import { useDataSource } from './useDataSource'
 
 export function useActivities(contactId?: string, dealId?: string) {
   const { user } = useAuth()
+  const { sourceOfTruth } = useDataSource()
   const queryClient = useQueryClient()
 
   const { data: activities = [], isLoading, error } = useQuery<Activity[]>({
-    queryKey: ['activities', contactId, dealId, user?.id],
+    queryKey: ['activities', contactId, dealId, user?.id, sourceOfTruth],
     queryFn: async () => {
+      if (sourceOfTruth === 'google_sheets') {
+        const allActivities = await googleSheetsReadService.getAllActivities()
+        if (contactId) {
+          return allActivities.filter(a => a.contact_id === contactId)
+        }
+        if (dealId) {
+          return allActivities.filter(a => a.deal_id === dealId)
+        }
+        return allActivities
+      }
       if (contactId) {
         return activitiesService.getByContact(contactId, user!.id)
       }

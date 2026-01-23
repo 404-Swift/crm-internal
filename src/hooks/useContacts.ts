@@ -1,15 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { contactsService } from '@/services/supabase/contacts'
+import { googleSheetsReadService } from '@/services/google-sheets/read'
 import type { Contact, ContactFormInput } from '@/types/contact'
 import { useAuth } from './useAuth'
+import { useDataSource } from './useDataSource'
 
 export function useContacts() {
   const { user } = useAuth()
+  const { sourceOfTruth } = useDataSource()
   const queryClient = useQueryClient()
 
   const { data: contacts = [], isLoading, error } = useQuery<Contact[]>({
-    queryKey: ['contacts', user?.id],
-    queryFn: () => contactsService.getAll(user!.id),
+    queryKey: ['contacts', user?.id, sourceOfTruth],
+    queryFn: async () => {
+      if (sourceOfTruth === 'google_sheets') {
+        return googleSheetsReadService.getAllContacts()
+      }
+      return contactsService.getAll(user!.id)
+    },
     enabled: !!user,
   })
 
@@ -56,10 +64,17 @@ export function useContacts() {
 
 export function useContact(id: string) {
   const { user } = useAuth()
+  const { sourceOfTruth } = useDataSource()
 
   const { data: contact, isLoading, error } = useQuery<Contact | null>({
-    queryKey: ['contact', id, user?.id],
-    queryFn: () => contactsService.getById(id, user!.id),
+    queryKey: ['contact', id, user?.id, sourceOfTruth],
+    queryFn: async () => {
+      if (sourceOfTruth === 'google_sheets') {
+        const allContacts = await googleSheetsReadService.getAllContacts()
+        return allContacts.find(c => c.id === id) || null
+      }
+      return contactsService.getById(id, user!.id)
+    },
     enabled: !!user && !!id,
   })
 

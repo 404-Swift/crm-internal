@@ -93,6 +93,24 @@ export default function ConflictResolution() {
     }
   }, [])
 
+  // Auto-select new records from Sheets when they appear (optional - can be disabled)
+  useEffect(() => {
+    if (hasCompared && conflictsWithIssues.length > 0) {
+      const newInSheetsIds = conflictsWithIssues
+        .filter((c: RecordConflict<any>) => c.isNewInSheets)
+        .map((c: RecordConflict<any>) => c.id)
+      
+      // Only auto-select if there are new records and none are currently selected
+      if (newInSheetsIds.length > 0 && selectedRecords.size === 0) {
+        // Don't auto-select automatically - let user decide
+        // Show notification about new records (using success as info alternative)
+        if (stats.newInSheets > 0) {
+          // Note: New records found - user can use auto-sync button
+        }
+      }
+    }
+  }, [hasCompared, conflictsWithIssues, stats.newInSheets, activeTab])
+
   const handleCompare = async () => {
     try {
       await compare()
@@ -186,16 +204,23 @@ export default function ConflictResolution() {
       
       for (const recordId of selectedRecords) {
         const conflict = currentConflicts.find((c: RecordConflict<any>) => c.id === recordId)
-        if (!conflict) continue
+        if (!conflict) {
+          console.warn(`Conflict not found for record ${recordId}`)
+          continue
+        }
 
         let action: Resolution<any>['action'] = 'skip'
         let fieldRes: Partial<Record<string, 'supabase' | 'sheets'>> | undefined
 
+        // Prioritize new records - they need explicit action
         if (conflict.isNewInSheets) {
           action = 'use-sheets'
+          console.log(`Resolving new record in Sheets: ${recordId}`, conflict)
         } else if (conflict.isNewInSupabase) {
           action = 'use-supabase'
+          console.log(`Resolving new record in Supabase: ${recordId}`, conflict)
         } else if (conflict.conflicts.length > 0) {
+          // Handle field conflicts
           const fieldResForRecord = fieldResolutions.get(recordId)
           if (fieldResForRecord && Object.keys(fieldResForRecord).length === conflict.conflicts.length) {
             action = 'merge'
@@ -209,7 +234,12 @@ export default function ConflictResolution() {
             fieldRes = resolutions
           } else {
             action = 'skip'
+            console.warn(`Skipping record ${recordId} - no field resolutions and no bulk action`)
           }
+        } else {
+          // No conflicts and not new - skip
+          console.warn(`Skipping record ${recordId} - no conflicts detected`)
+          action = 'skip'
         }
 
         if (action !== 'skip') {
@@ -218,8 +248,16 @@ export default function ConflictResolution() {
             action,
             fieldResolutions: fieldRes,
           })
+          console.log(`Added resolution for ${recordId}:`, { action, fieldRes })
         }
       }
+
+      if (resolutions.length === 0) {
+        toast.error('No resolutions to apply', 'Please select records with conflicts or new records to sync')
+        return
+      }
+
+      console.log(`Resolving ${resolutions.length} records:`, resolutions)
 
       if (activeTab === 'contact') {
         await resolveContacts(resolutions)
@@ -401,6 +439,58 @@ export default function ConflictResolution() {
                 </span>
               </div>
               <div className="flex gap-2">
+                {stats.newInSheets > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        // Auto-select all "new in Sheets" records
+                        const newInSheetsIds = conflictsWithIssues
+                          .filter((c: RecordConflict<any>) => c.isNewInSheets)
+                          .map((c: RecordConflict<any>) => c.id)
+                        
+                        setSelectedRecords(new Set(newInSheetsIds))
+                        handleBulkSelect('use-sheets')
+                        
+                        // Build resolutions for all new records
+                        const resolutions: Resolution<any>[] = newInSheetsIds.map(recordId => ({
+                          recordId,
+                          action: 'use-sheets' as const,
+                        }))
+                        
+                        // Resolve directly without confirmation dialog for auto-sync
+                        if (activeTab === 'contact') {
+                          await resolveContacts(resolutions)
+                        } else if (activeTab === 'deal') {
+                          await resolveDeals(resolutions)
+                        } else {
+                          await resolveActivities(resolutions)
+                        }
+                        
+                        toast.success(
+                          `Synced ${resolutions.length} new ${activeTab === 'activity' ? 'activit' : activeTab.slice(0, -1)}${resolutions.length !== 1 ? 'ies' : 'y'} from Google Sheets`,
+                          'Records have been added to Supabase and synced'
+                        )
+                        
+                        // Refresh the comparison
+                        setSelectedRecords(new Set())
+                        setFieldResolutions(new Map())
+                        setBulkAction(null)
+                        await handleCompare()
+                      } catch (error: any) {
+                        console.error('Auto-sync error:', error)
+                        const errorMessage = error?.message || error?.toString() || 'Unknown error occurred'
+                        toast.error('Auto-sync failed', errorMessage)
+                      }
+                    }}
+                    className="gap-2"
+                    disabled={isResolving}
+                  >
+                    <Icon icon={Check} size={16} />
+                    Auto-Sync All New from Sheets ({stats.newInSheets})
+                  </Button>
+                )}
                 <div className="relative group">
                   <Button
                     variant={bulkAction === 'use-supabase' ? 'default' : 'outline'}
@@ -522,21 +612,38 @@ export default function ConflictResolution() {
                                 <Icon icon={Info} size={16} className="text-primary mt-0.5 flex-shrink-0" />
                                 <div>
                                   {conflict.isNewInSheets && (
-                                    <div className="font-medium text-primary mb-1">
-                                      Will create in Supabase and sync to Google Sheets
+                                    <div>
+                                      <div className="font-medium text-primary mb-1">
+                                        Will import from Google Sheets to Supabase
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        This record exists in Google Sheets but not in Supabase. It will be created in Supabase with the same data.
+                                      </div>
                                     </div>
                                   )}
                                   {conflict.isNewInSupabase && (
-                                    <div className="font-medium text-primary mb-1">
-                                      Will sync to Google Sheets
+                                    <div>
+                                      <div className="font-medium text-primary mb-1">
+                                        Will sync to Google Sheets
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        This record exists in Supabase but not in Google Sheets. It will be added to Google Sheets.
+                                      </div>
                                     </div>
                                   )}
                                   {hasFieldConflicts && !conflict.isNewInSheets && !conflict.isNewInSupabase && (
-                                    <div className="font-medium text-primary mb-1">
-                                      {allFieldsResolved 
-                                        ? 'Will update both Supabase and Google Sheets with selected values'
-                                        : 'Please resolve all field conflicts before syncing'
-                                      }
+                                    <div>
+                                      <div className="font-medium text-primary mb-1">
+                                        {allFieldsResolved 
+                                          ? 'Will update both Supabase and Google Sheets with selected values'
+                                          : 'Please resolve all field conflicts before syncing'
+                                        }
+                                      </div>
+                                      {!allFieldsResolved && (
+                                        <div className="text-xs text-muted-foreground mt-1">
+                                          Expand this record to choose which values to keep for each conflicting field.
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>

@@ -248,6 +248,29 @@ export interface Database {
           updated_at?: string
         }
       }
+      data_source_config: {
+        Row: {
+          id: string
+          singleton: boolean
+          source_type: 'supabase' | 'google_sheets'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          singleton?: boolean
+          source_type: 'supabase' | 'google_sheets'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          singleton?: boolean
+          source_type?: 'supabase' | 'google_sheets'
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

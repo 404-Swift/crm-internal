@@ -2,6 +2,7 @@ import { supabase } from './client'
 import type { Contact, ContactFormInput } from '@/types/contact'
 import type { Database } from './types'
 import { googleSheetsContactsService } from '../google-sheets/contacts'
+import { getSourceOfTruth } from './data-source-config'
 
 type ContactRow = Database['public']['Tables']['contacts']['Row']
 type ContactInsert = Database['public']['Tables']['contacts']['Insert']
@@ -54,13 +55,16 @@ export const contactsService = {
     
     const contact = (data as ContactRow) as Contact
 
-    // Write to Google Sheets immediately (source of truth)
-    // Await to ensure sync completes before returning
-    try {
-      await googleSheetsContactsService.create(contact, false)
-    } catch (err) {
-      console.error('Google Sheets sync failed:', err)
-      // Don't throw - allow Supabase write to succeed, but log the error
+    // Write to Google Sheets immediately only if Supabase is source of truth
+    // If Google Sheets is source of truth, don't auto-sync (it's just a backup)
+    const sourceOfTruth = await getSourceOfTruth()
+    if (sourceOfTruth === 'supabase') {
+      try {
+        await googleSheetsContactsService.create(contact, false)
+      } catch (err) {
+        console.error('Google Sheets sync failed:', err)
+        // Don't throw - allow Supabase write to succeed, but log the error
+      }
     }
 
     return contact
@@ -89,13 +93,16 @@ export const contactsService = {
     
     const contact = (data as ContactRow) as Contact
 
-    // Update Google Sheets immediately (source of truth)
-    // Await to ensure sync completes before returning
-    try {
-      await googleSheetsContactsService.update(contact, false)
-    } catch (err) {
-      console.error('Google Sheets sync failed:', err)
-      // Don't throw - allow Supabase write to succeed, but log the error
+    // Update Google Sheets immediately only if Supabase is source of truth
+    // If Google Sheets is source of truth, don't auto-sync (it's just a backup)
+    const sourceOfTruth = await getSourceOfTruth()
+    if (sourceOfTruth === 'supabase') {
+      try {
+        await googleSheetsContactsService.update(contact, false)
+      } catch (err) {
+        console.error('Google Sheets sync failed:', err)
+        // Don't throw - allow Supabase write to succeed, but log the error
+      }
     }
 
     return contact

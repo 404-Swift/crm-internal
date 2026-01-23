@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
-import { syncAllDataToGoogleSheets, syncContactToGoogleSheets, syncDealToGoogleSheets } from '@/services/google-sheets/sync'
+import { syncAllDataToGoogleSheets, syncContactToGoogleSheets, syncDealToGoogleSheets, syncFromGoogleSheets } from '@/services/google-sheets/sync'
 import { useAuth } from './useAuth'
 
 export function useGoogleSheetsSync() {
@@ -17,10 +17,15 @@ export function useGoogleSheetsSync() {
     mutationFn: (dealId: string) => syncDealToGoogleSheets(dealId, user!.id),
   })
 
+  const syncFromSheetsMutation = useMutation({
+    mutationFn: () => syncFromGoogleSheets(user!.id),
+  })
+
   return {
     syncAll: syncAllMutation.mutateAsync,
     syncContact: syncContactMutation.mutateAsync,
     syncDeal: syncDealMutation.mutateAsync,
-    isSyncing: syncAllMutation.isPending || syncContactMutation.isPending || syncDealMutation.isPending,
+    syncFromSheets: syncFromSheetsMutation.mutateAsync,
+    isSyncing: syncAllMutation.isPending || syncContactMutation.isPending || syncDealMutation.isPending || syncFromSheetsMutation.isPending,
   }
 }
