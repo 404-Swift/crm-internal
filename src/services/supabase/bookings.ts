@@ -2,7 +2,6 @@ import { supabase } from './client'
 import type { Booking, BookingFormInput, TeamMemberAssignment } from '@/types/booking'
 import type { Database } from './types'
 
-type BookingRow = Database['public']['Tables']['bookings']['Row']
 type BookingInsert = Database['public']['Tables']['bookings']['Insert']
 type BookingUpdate = Database['public']['Tables']['bookings']['Update']
 
@@ -177,7 +176,7 @@ export const bookingsService = {
   },
 
   async upsertFromGoogleCalendar(
-    googleEventId: string,
+    _googleEventId: string,
     input: Omit<BookingFormInput, 'contact_id' | 'deal_id'> & {
       google_calendar_event_id: string
       google_calendar_synced_at: string
@@ -231,9 +230,9 @@ export const bookingsService = {
       updated_at: new Date().toISOString(),
     }
 
-    const { data, error } = await supabase
-      .from('bookings')
-      .update(update as any)
+    const { data, error } = await (supabase
+      .from('bookings') as any)
+      .update(update)
       .eq('id', id)
       .eq('user_id', userId)
       .select(`

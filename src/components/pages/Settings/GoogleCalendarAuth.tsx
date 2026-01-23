@@ -3,7 +3,7 @@ import { Button } from '@/components/atoms/Button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Icon } from '@/components/atoms/Icon'
 import { CheckCircle2, XCircle, Loader2, AlertCircle, RefreshCw, Calendar } from 'lucide-react'
-import { initiateOAuth, isConnected, clearTokens, getStoredTokens } from '@/services/google-calendar/oauth'
+import { initiateOAuth, isConnected, clearTokens } from '@/services/google-calendar/oauth'
 import { useGoogleCalendarSync } from '@/hooks/useGoogleCalendarSync'
 import { getLastSyncTime } from '@/services/google-calendar/sync'
 import { format } from 'date-fns'
@@ -69,13 +69,12 @@ export function GoogleCalendarAuth() {
 
   const handleSync = async () => {
     try {
-      await sync()
+      await sync({})
     } catch (error) {
       console.error('Error syncing calendar:', error)
     }
   }
 
-  const tokenInfo = getStoredTokens()
   const lastSync = lastSyncTime || getLastSyncTime()
 
   if (checking) {

@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { teamMembersService } from '@/services/supabase/team-members'
 import type { TeamMember, TeamMemberFormInput } from '@/types/team-member'
-import { useAuth } from './useAuth'
 
 export function useTeamMembers() {
   const queryClient = useQueryClient()

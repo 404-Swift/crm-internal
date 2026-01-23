@@ -1,13 +1,11 @@
 import { getEvents, type GoogleCalendarEvent } from './client'
 import { bookingsService } from '../supabase/bookings'
-import { format, parseISO } from 'date-fns'
 
 /**
  * Convert Google Calendar event to booking format
  */
 function googleEventToBooking(
-  event: GoogleCalendarEvent,
-  userId: string
+  event: GoogleCalendarEvent
 ): {
   google_calendar_event_id: string
   title: string
@@ -91,7 +89,7 @@ export async function syncBookingsFromGoogleCalendar(
             continue
           }
 
-          const bookingData = googleEventToBooking(event, userId)
+          const bookingData = googleEventToBooking(event)
           
           await bookingsService.upsertFromGoogleCalendar(
             event.id,

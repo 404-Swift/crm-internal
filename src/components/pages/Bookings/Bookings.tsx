@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { DashboardLayout } from '@/components/templates/DashboardLayout'
 import { CalendarView } from '@/components/organisms/CalendarView'
 import { Button } from '@/components/atoms/Button'
-import { RefreshCw, Calendar as CalendarIcon } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { Icon } from '@/components/atoms/Icon'
 import { useGoogleCalendarSync } from '@/hooks/useGoogleCalendarSync'
 import { format } from 'date-fns'
@@ -12,7 +12,7 @@ export default function Bookings() {
   const [selectedDate, setSelectedDate] = useState(new Date())
 
   const handleSync = async () => {
-    await sync()
+    await sync({})
   }
 
   return (

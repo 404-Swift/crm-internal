@@ -1,3 +1,5 @@
+import type { TeamMember } from './team-member'
+
 export interface Booking {
   id: string
   google_calendar_event_id?: string | null

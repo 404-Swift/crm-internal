@@ -20,10 +20,11 @@ export function useGoogleCalendarSync() {
       setLastSyncTime()
       queryClient.invalidateQueries({ queryKey: ['bookings', user?.id] })
       if (result.errors > 0) {
-        toast.warning(
-          'Sync completed with errors',
-          `Synced ${result.synced} bookings, ${result.errors} errors occurred`
-        )
+        toast.show({
+          title: 'Sync completed with errors',
+          description: `Synced ${result.synced} bookings, ${result.errors} errors occurred`,
+          variant: 'default',
+        })
       } else {
         toast.success(
           'Calendar synced successfully',

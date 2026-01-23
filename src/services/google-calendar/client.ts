@@ -96,7 +96,7 @@ export async function getEvent(calendarId: string, eventId: string): Promise<Goo
       'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-  )
+  })
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: { message: response.statusText } }))

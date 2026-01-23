@@ -76,9 +76,9 @@ export const teamMembersService = {
       updated_at: new Date().toISOString(),
     }
 
-    const { data, error } = await supabase
-      .from('team_members')
-      .update(update as any)
+    const { data, error } = await (supabase
+      .from('team_members') as any)
+      .update(update)
       .eq('id', id)
       .eq('user_id', userId)
       .select()
