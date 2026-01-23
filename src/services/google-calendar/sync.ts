@@ -73,11 +73,12 @@ export async function syncBookingsFromGoogleCalendar(
     syncToken = storedSyncToken
   }
 
-  // If no sync token and no time range, default to last 30 days and next 90 days
+  // If no sync token and no time range, default to last 90 days and next 365 days
+  // This wider range ensures we catch more orphaned bookings
   if (!syncToken && !timeMin && !timeMax) {
     const now = new Date()
-    timeMin = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    timeMax = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString()
+    timeMin = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
+    timeMax = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString()
   }
 
   do {
@@ -183,8 +184,11 @@ export async function syncBookingsFromGoogleCalendar(
   // Only check bookings within the sync time range to avoid false positives
   if (!syncToken && timeMin && timeMax) {
     try {
+      console.log(`Checking for orphaned bookings in range ${timeMin} to ${timeMax}`)
+      
       // Get all bookings within the sync time range
       const bookingsInRange = await bookingsService.getByDateRange(userId, timeMin, timeMax)
+      console.log(`Found ${bookingsInRange.length} bookings in range, ${googleCalendarEventIds.size} events in Google Calendar`)
       
       // Find orphaned bookings:
       // 1. Bookings with google_calendar_event_id that don't exist in Google Calendar
@@ -192,11 +196,18 @@ export async function syncBookingsFromGoogleCalendar(
       const orphanedBookings = bookingsInRange.filter((booking) => {
         if (!booking.google_calendar_event_id) {
           // Booking without event ID - it's an orphan since Google Calendar is source of truth
+          console.log(`Booking ${booking.id} (${booking.title}) has no google_calendar_event_id - marking as orphan`)
           return true
         }
         // Booking with event ID that doesn't exist in Google Calendar
-        return !googleCalendarEventIds.has(booking.google_calendar_event_id)
+        const isOrphan = !googleCalendarEventIds.has(booking.google_calendar_event_id)
+        if (isOrphan) {
+          console.log(`Booking ${booking.id} (${booking.title}) with event ID ${booking.google_calendar_event_id} not found in Google Calendar - marking as orphan`)
+        }
+        return isOrphan
       })
+
+      console.log(`Found ${orphanedBookings.length} orphaned bookings to delete`)
 
       // Delete orphaned bookings
       for (const booking of orphanedBookings) {
@@ -205,17 +216,21 @@ export async function syncBookingsFromGoogleCalendar(
           deleted++
           if (booking.google_calendar_event_id) {
             console.log(
-              `Deleted orphaned booking ${booking.id} (Google Calendar event ${booking.google_calendar_event_id} no longer exists)`
+              `✓ Deleted orphaned booking ${booking.id} (${booking.title}) - Google Calendar event ${booking.google_calendar_event_id} no longer exists`
             )
           } else {
             console.log(
-              `Deleted orphaned booking ${booking.id} (no Google Calendar event ID - local-only booking)`
+              `✓ Deleted orphaned booking ${booking.id} (${booking.title}) - no Google Calendar event ID (local-only booking)`
             )
           }
         } catch (error) {
-          console.error(`Failed to delete orphaned booking ${booking.id}:`, error)
+          console.error(`✗ Failed to delete orphaned booking ${booking.id}:`, error)
           errors++
         }
+      }
+      
+      if (orphanedBookings.length > 0) {
+        console.log(`Orphan detection complete: ${deleted} deleted, ${errors} errors`)
       }
     } catch (error) {
       console.error('Failed to check for orphaned bookings:', error)
@@ -239,4 +254,11 @@ export function getLastSyncTime(): Date | null {
  */
 export function setLastSyncTime(): void {
   localStorage.setItem('google_calendar_last_sync', new Date().toISOString())
+}
+
+/**
+ * Clear the sync token to force a full sync on next sync
+ */
+export function clearSyncToken(): void {
+  localStorage.removeItem('google_calendar_sync_token')
 }
