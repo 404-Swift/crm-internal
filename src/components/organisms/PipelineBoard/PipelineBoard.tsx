@@ -43,16 +43,16 @@ export function PipelineBoard() {
   }
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
+    <div className="flex gap-4 overflow-x-auto pb-4" style={{ height: 'calc(100vh - 280px)', minHeight: '600px' }}>
       {DEAL_STAGES.map((stage) => (
         <div
           key={stage}
-          className="flex-shrink-0 w-80"
+          className="flex-shrink-0 w-80 h-full"
           onDragOver={handleDragOver}
           onDrop={() => handleDrop(stage)}
         >
-          <Card className="h-full">
-            <CardHeader className="pb-3">
+          <Card className="h-full flex flex-col">
+            <CardHeader className="pb-3 flex-shrink-0">
               <CardTitle className="text-base font-semibold capitalize">
                 {stage.replace('-', ' ')}
               </CardTitle>
@@ -60,24 +60,24 @@ export function PipelineBoard() {
                 {dealsByStage[stage]?.length || 0} deals
               </p>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="flex-1 overflow-y-auto space-y-2 min-h-0">
               {dealsByStage[stage]?.map((deal) => (
                 <Link key={deal.id} to={`/deals/${deal.id}`}>
                   <div
                     draggable
                     onDragStart={() => handleDragStart(deal)}
                     className={cn(
-                      "p-3 rounded-lg border bg-card hover:shadow-apple transition-shadow cursor-move",
+                      "p-3 rounded-lg border bg-card hover:shadow-apple transition-shadow cursor-move h-32 flex flex-col",
                       draggedDeal?.id === deal.id && "opacity-50"
                     )}
                   >
-                    <h4 className="font-medium text-sm mb-1">{deal.title}</h4>
+                    <h4 className="font-medium text-sm mb-1 line-clamp-1">{deal.title}</h4>
                     {deal.contact && (
-                      <p className="text-xs text-muted-foreground mb-2">
+                      <p className="text-xs text-muted-foreground mb-2 line-clamp-1">
                         {deal.contact.first_name} {deal.contact.last_name}
                       </p>
                     )}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mt-auto">
                       <span className="text-sm font-semibold">
                         {new Intl.NumberFormat('en-US', {
                           style: 'currency',
@@ -90,7 +90,7 @@ export function PipelineBoard() {
                       </Badge>
                     </div>
                     {deal.expected_close_date && (
-                      <p className="text-xs text-muted-foreground mt-2">
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
                         {format(new Date(deal.expected_close_date), 'MMM d, yyyy')}
                       </p>
                     )}

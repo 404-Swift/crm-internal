@@ -16,9 +16,9 @@ export function ContactCard({ contact, className }: ContactCardProps) {
 
   return (
     <Link to={`/contacts/${contact.id}`}>
-      <Card className={cn("hover:shadow-apple-lg transition-shadow cursor-pointer", className)}>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
+      <Card className={cn("hover:shadow-apple-lg transition-shadow cursor-pointer h-full", className)}>
+        <CardContent className="p-4 h-full flex items-center">
+          <div className="flex items-center gap-3 w-full">
             <Avatar
               fallback={initials}
               alt={fullName}
@@ -33,7 +33,7 @@ export function ContactCard({ contact, className }: ContactCardProps) {
               )}
             </div>
             {contact.status && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs flex-shrink-0">
                 {contact.status}
               </Badge>
             )}
