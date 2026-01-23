@@ -59,11 +59,13 @@ export async function syncBookingsFromGoogleCalendar(
   calendarId: string = 'primary',
   timeMin?: string,
   timeMax?: string
-): Promise<{ synced: number; errors: number }> {
+): Promise<{ synced: number; errors: number; deleted: number }> {
   let synced = 0
   let errors = 0
+  let deleted = 0
   let nextPageToken: string | undefined
   let syncToken: string | undefined
+  const googleCalendarEventIds = new Set<string>() // Track all event IDs from Google Calendar
 
   // Try to get stored sync token from localStorage
   const storedSyncToken = localStorage.getItem('google_calendar_sync_token')
@@ -88,6 +90,28 @@ export async function syncBookingsFromGoogleCalendar(
           // Skip recurring event instances (we only want the master event)
           if (event.recurringEventId) {
             continue
+          }
+
+          // Handle deleted events (status: 'cancelled')
+          // When using syncToken, Google Calendar returns deleted events with status 'cancelled'
+          if (event.status === 'cancelled') {
+            const existingBooking = await bookingsService.getByGoogleCalendarEventId(
+              event.id,
+              userId
+            ).catch(() => null)
+            
+            if (existingBooking) {
+              // Delete the booking from CRM since it was deleted in Google Calendar
+              await bookingsService.delete(existingBooking.id, userId)
+              deleted++
+              console.log(`Deleted booking ${existingBooking.id} (Google Calendar event ${event.id} was cancelled)`)
+            }
+            continue
+          }
+
+          // Track active event IDs for orphan detection (only during full syncs without syncToken)
+          if (!syncToken) {
+            googleCalendarEventIds.add(event.id)
           }
 
           // Check if booking already exists in Supabase by Google Calendar event ID
@@ -154,7 +178,39 @@ export async function syncBookingsFromGoogleCalendar(
     }
   } while (nextPageToken)
 
-  return { synced, errors }
+  // For full syncs (without syncToken), check for orphaned bookings
+  // Bookings that exist in CRM but no longer exist in Google Calendar
+  // Only check bookings within the sync time range to avoid false positives
+  if (!syncToken && googleCalendarEventIds.size > 0 && timeMin && timeMax) {
+    try {
+      // Get bookings within the sync time range that have a google_calendar_event_id
+      const bookingsInRange = await bookingsService.getByDateRange(userId, timeMin, timeMax)
+      const orphanedBookings = bookingsInRange.filter(
+        (booking) =>
+          booking.google_calendar_event_id &&
+          !googleCalendarEventIds.has(booking.google_calendar_event_id)
+      )
+
+      // Delete orphaned bookings
+      for (const booking of orphanedBookings) {
+        try {
+          await bookingsService.delete(booking.id, userId)
+          deleted++
+          console.log(
+            `Deleted orphaned booking ${booking.id} (Google Calendar event ${booking.google_calendar_event_id} no longer exists)`
+          )
+        } catch (error) {
+          console.error(`Failed to delete orphaned booking ${booking.id}:`, error)
+          errors++
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check for orphaned bookings:', error)
+      // Don't throw - this is a cleanup operation
+    }
+  }
+
+  return { synced, errors, deleted }
 }
 
 /**

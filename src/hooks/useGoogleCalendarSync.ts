@@ -23,16 +23,30 @@ export function useGoogleCalendarSync() {
     onSuccess: (result) => {
       setLastSyncTime()
       queryClient.invalidateQueries({ queryKey: ['bookings', user?.id] })
+      
+      const messages: string[] = []
+      if (result.synced > 0) {
+        messages.push(`Synced ${result.synced} booking${result.synced !== 1 ? 's' : ''}`)
+      }
+      if (result.deleted > 0) {
+        messages.push(`Deleted ${result.deleted} booking${result.deleted !== 1 ? 's' : ''}`)
+      }
+      
       if (result.errors > 0) {
         toast.show({
           title: 'Sync completed with errors',
-          description: `Synced ${result.synced} bookings, ${result.errors} errors occurred`,
+          description: `${messages.join(', ')}. ${result.errors} error${result.errors !== 1 ? 's' : ''} occurred`,
           variant: 'default',
         })
-      } else {
+      } else if (result.synced > 0 || result.deleted > 0) {
         toast.success(
           'Calendar synced successfully',
-          `Synced ${result.synced} bookings from Google Calendar`
+          messages.join(', ') + ' from Google Calendar'
+        )
+      } else {
+        toast.success(
+          'Calendar sync completed',
+          'No changes detected'
         )
       }
     },

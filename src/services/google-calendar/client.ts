@@ -24,6 +24,7 @@ export interface GoogleCalendarEvent {
   recurringEventId?: string
   recurrence?: string[]
   updated?: string
+  status?: 'confirmed' | 'tentative' | 'cancelled'
 }
 
 export interface GoogleCalendarEventsResponse {
