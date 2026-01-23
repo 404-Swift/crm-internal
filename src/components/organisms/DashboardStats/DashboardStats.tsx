@@ -95,13 +95,14 @@ export function DashboardStats() {
           </CardHeader>
           <CardContent>
             <ReactECharts
+              key={pipelineChartType}
               option={
                 pipelineChartType === 'bar'
                   ? getPipelineBarConfig(deals)
                   : getPipelinePieConfig(deals)
               }
               style={{ height: '300px' }}
-              opts={{ renderer: 'svg' }}
+              opts={{ renderer: 'svg', notMerge: true }}
             />
           </CardContent>
         </Card>
