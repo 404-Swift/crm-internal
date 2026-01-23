@@ -1,16 +1,13 @@
 import { supabase } from './client'
+import type { Database } from './types'
 
 export type ServiceType = 'google_calendar' | 'google_sheets'
 
-export interface OAuthTokens {
-  id: string
-  service_type: ServiceType
-  access_token: string
-  refresh_token: string
-  expires_at: string
-  created_at: string
-  updated_at: string
-}
+type OAuthTokensRow = Database['public']['Tables']['oauth_tokens']['Row']
+type OAuthTokensInsert = Database['public']['Tables']['oauth_tokens']['Insert']
+type OAuthTokensUpdate = Database['public']['Tables']['oauth_tokens']['Update']
+
+export interface OAuthTokens extends OAuthTokensRow {}
 
 export interface StoredTokens {
   accessToken: string
@@ -29,14 +26,16 @@ export async function storeTokens(
 ): Promise<void> {
   const expiresAtDate = new Date(expiresAt).toISOString()
 
-  const { error } = await supabase
-    .from('oauth_tokens')
-    .upsert({
-      service_type: serviceType,
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      expires_at: expiresAtDate,
-    }, {
+  const insert: OAuthTokensInsert = {
+    service_type: serviceType,
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_at: expiresAtDate,
+  }
+
+  const { error } = await (supabase
+    .from('oauth_tokens') as any)
+    .upsert(insert, {
       onConflict: 'service_type',
     })
 
@@ -69,10 +68,12 @@ export async function getStoredTokens(
     return null
   }
 
+  const row = data as OAuthTokensRow
+
   return {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token,
-    expiresAt: new Date(data.expires_at).getTime(),
+    accessToken: row.access_token,
+    refreshToken: row.refresh_token,
+    expiresAt: new Date(row.expires_at).getTime(),
   }
 }
 
@@ -85,7 +86,7 @@ export async function updateTokens(
   refreshToken?: string,
   expiresAt?: number
 ): Promise<void> {
-  const updateData: Partial<OAuthTokens> = {
+  const updateData: OAuthTokensUpdate = {
     access_token: accessToken,
   }
 
@@ -97,8 +98,8 @@ export async function updateTokens(
     updateData.expires_at = new Date(expiresAt).toISOString()
   }
 
-  const { error } = await supabase
-    .from('oauth_tokens')
+  const { error } = await (supabase
+    .from('oauth_tokens') as any)
     .update(updateData)
     .eq('service_type', serviceType)
 

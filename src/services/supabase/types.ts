@@ -219,6 +219,35 @@ export interface Database {
           assigned_by?: string
         }
       }
+      oauth_tokens: {
+        Row: {
+          id: string
+          service_type: 'google_calendar' | 'google_sheets'
+          access_token: string
+          refresh_token: string
+          expires_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          service_type: 'google_calendar' | 'google_sheets'
+          access_token: string
+          refresh_token: string
+          expires_at: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          service_type?: 'google_calendar' | 'google_sheets'
+          access_token?: string
+          refresh_token?: string
+          expires_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
