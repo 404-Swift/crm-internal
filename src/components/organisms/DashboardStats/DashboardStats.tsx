@@ -1,11 +1,13 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { StatCard } from '@/components/molecules/StatCard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { useContacts } from '@/hooks/useContacts'
 import { useDeals } from '@/hooks/useDeals'
 import {
-  getPipelineFunnelConfig,
+  getPipelineBarConfig,
+  getPipelinePieConfig,
   getDealsByStageOverTimeConfig,
   getContactsBySourceConfig,
 } from '@/services/charts/chartConfigs'
@@ -13,6 +15,7 @@ import {
 export function DashboardStats() {
   const { contacts, isLoading: contactsLoading } = useContacts()
   const { deals, isLoading: dealsLoading } = useDeals()
+  const [pipelineChartType, setPipelineChartType] = useState<'bar' | 'pie'>('bar')
 
   const stats = useMemo(() => {
     const totalDeals = deals.length
@@ -70,11 +73,33 @@ export function DashboardStats() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Pipeline Funnel</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Pipeline</CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant={pipelineChartType === 'bar' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPipelineChartType('bar')}
+                >
+                  Bar
+                </Button>
+                <Button
+                  variant={pipelineChartType === 'pie' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setPipelineChartType('pie')}
+                >
+                  Pie
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <ReactECharts
-              option={getPipelineFunnelConfig(deals)}
+              option={
+                pipelineChartType === 'bar'
+                  ? getPipelineBarConfig(deals)
+                  : getPipelinePieConfig(deals)
+              }
               style={{ height: '300px' }}
               opts={{ renderer: 'svg' }}
             />

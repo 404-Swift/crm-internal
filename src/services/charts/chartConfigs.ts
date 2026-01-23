@@ -15,14 +15,15 @@ const darkAxisLabelStyle = {
   fontSize: 11,
 }
 
-export const getPipelineFunnelConfig = (deals: Deal[]): EChartsOption => {
+// Helper function to get pipeline data
+const getPipelineData = (deals: Deal[]) => {
   const stageCounts = deals.reduce((acc, deal) => {
     acc[deal.stage] = (acc[deal.stage] || 0) + 1
     return acc
   }, {} as Record<string, number>)
 
-  // Color palette for funnel chart
-  const funnelColors = [
+  // Color palette for charts
+  const stageColors = [
     '#60a5fa', // blue - prospecting
     '#34d399', // green - qualification
     '#fbbf24', // yellow - proposal
@@ -32,13 +33,96 @@ export const getPipelineFunnelConfig = (deals: Deal[]): EChartsOption => {
   ]
 
   const stages = ['prospecting', 'qualification', 'proposal', 'negotiation', 'closed-won', 'closed-lost']
-  const data = stages.map((stage, index) => ({
+  return stages.map((stage, index) => ({
     value: stageCounts[stage] || 0,
     name: stage.charAt(0).toUpperCase() + stage.slice(1).replace('-', ' '),
     itemStyle: {
-      color: funnelColors[index],
+      color: stageColors[index],
     },
   }))
+}
+
+export const getPipelineBarConfig = (deals: Deal[]): EChartsOption => {
+  const data = getPipelineData(deals)
+
+  return {
+    backgroundColor: 'transparent',
+    textStyle: darkTextStyle,
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'shadow',
+      },
+      backgroundColor: 'rgba(20, 20, 20, 0.95)',
+      borderColor: 'rgba(255, 255, 255, 0.1)',
+      borderWidth: 1,
+      textStyle: {
+        color: '#fafafa',
+        fontSize: 12,
+      },
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      containLabel: true,
+    },
+    xAxis: {
+      type: 'category',
+      data: data.map((d) => d.name),
+      axisTick: {
+        alignWithLabel: true,
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.1)',
+        },
+      },
+      axisLabel: darkAxisLabelStyle,
+      axisLine: {
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.1)',
+        },
+      },
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: darkAxisLabelStyle,
+      axisLine: {
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.1)',
+        },
+      },
+      splitLine: {
+        lineStyle: {
+          color: 'rgba(255, 255, 255, 0.05)',
+        },
+      },
+    },
+    series: [
+      {
+        name: 'Pipeline',
+        type: 'bar',
+        barWidth: '60%',
+        data: data.map((d) => ({
+          value: d.value,
+          itemStyle: {
+            color: d.itemStyle?.color,
+            borderRadius: [4, 4, 0, 0],
+          },
+        })),
+        label: {
+          show: true,
+          position: 'top',
+          color: '#fafafa',
+          fontSize: 11,
+          fontWeight: 500,
+        },
+      },
+    ],
+  }
+}
+
+export const getPipelinePieConfig = (deals: Deal[]): EChartsOption => {
+  const data = getPipelineData(deals)
 
   return {
     backgroundColor: 'transparent',
@@ -54,43 +138,44 @@ export const getPipelineFunnelConfig = (deals: Deal[]): EChartsOption => {
         fontSize: 12,
       },
     },
+    legend: {
+      orient: 'vertical',
+      left: 'left',
+      bottom: 'middle',
+      textStyle: {
+        color: '#a3a3a3',
+        fontSize: 11,
+      },
+    },
     series: [
       {
         name: 'Pipeline',
-        type: 'funnel',
-        left: '10%',
-        top: 60,
-        bottom: 60,
-        width: '80%',
-        min: 0,
-        max: Math.max(...data.map((d) => d.value), 1),
-        minSize: '0%',
-        maxSize: '100%',
-        sort: 'descending',
-        gap: 2,
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderRadius: 8,
+          borderColor: 'rgba(20, 20, 20, 0.8)',
+          borderWidth: 2,
+        },
         label: {
           show: true,
-          position: 'inside',
+          formatter: '{b}: {c}',
           color: '#fafafa',
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: 500,
         },
         labelLine: {
-          length: 10,
           lineStyle: {
-            width: 1,
-            type: 'solid',
-            color: 'rgba(255, 255, 255, 0.2)',
+            color: 'rgba(255, 255, 255, 0.3)',
           },
-        },
-        itemStyle: {
-          borderColor: 'rgba(255, 255, 255, 0.1)',
-          borderWidth: 1,
         },
         emphasis: {
           label: {
-            fontSize: 14,
+            show: true,
+            fontSize: 13,
             fontWeight: 600,
+            color: '#fafafa',
           },
         },
         data,
