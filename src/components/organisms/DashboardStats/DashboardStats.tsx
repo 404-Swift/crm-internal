@@ -102,7 +102,7 @@ export function DashboardStats() {
                   : getPipelinePieConfig(deals)
               }
               style={{ height: '300px' }}
-              opts={{ renderer: 'svg', notMerge: true }}
+              opts={{ renderer: 'svg' }}
             />
           </CardContent>
         </Card>
