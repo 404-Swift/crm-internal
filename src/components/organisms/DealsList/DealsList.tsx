@@ -4,8 +4,6 @@ import { Badge } from '@/components/atoms/Badge'
 import { useDeals } from '@/hooks/useDeals'
 import { format } from 'date-fns'
 import { Link } from 'react-router-dom'
-import { cn } from '@/lib/utils'
-import type { Deal } from '@/types/deal'
 
 export function DealsList() {
   const { deals, isLoading } = useDeals()

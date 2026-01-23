@@ -8,7 +8,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/atoms/Badge'
 import { Avatar } from '@/components/atoms/Avatar'
 import { Link } from 'react-router-dom'
-import { cn } from '@/lib/utils'
 
 type ViewMode = 'grid' | 'list'
 
