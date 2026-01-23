@@ -42,7 +42,7 @@ export const googleSheetsDealsService = {
     }
 
     // Check if connected before attempting
-    if (!isConnected()) {
+    if (!(await isConnected())) {
       return // Silent fail if not authenticated
     }
 
@@ -79,7 +79,7 @@ export const googleSheetsDealsService = {
     }
 
     // Check if connected before attempting
-    if (!isConnected()) {
+    if (!(await isConnected())) {
       return // Silent fail if not authenticated
     }
 
@@ -114,7 +114,7 @@ export const googleSheetsDealsService = {
     }
 
     // Check if connected before attempting
-    if (!isConnected()) {
+    if (!(await isConnected())) {
       return // Silent fail if not authenticated
     }
 

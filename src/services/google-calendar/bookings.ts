@@ -55,7 +55,7 @@ export async function createBookingInCalendar(
   booking: Booking,
   calendarId: string = 'primary'
 ): Promise<string> {
-  if (!isConnected()) {
+  if (!(await isConnected())) {
     throw new Error('Google Calendar is not connected. Please connect it in Settings first.')
   }
 
@@ -76,7 +76,7 @@ export async function updateBookingInCalendar(
   booking: Booking,
   calendarId: string = 'primary'
 ): Promise<void> {
-  if (!isConnected()) {
+  if (!(await isConnected())) {
     throw new Error('Google Calendar is not connected. Please connect it in Settings first.')
   }
 
@@ -109,7 +109,7 @@ export async function deleteBookingFromCalendar(
   googleCalendarEventId: string,
   calendarId: string = 'primary'
 ): Promise<void> {
-  if (!isConnected()) {
+  if (!(await isConnected())) {
     // Silent fail if not connected
     return
   }

@@ -4,19 +4,50 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Icon } from '@/components/atoms/Icon'
 import { CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react'
 import { initiateOAuth, isConnected, clearTokens, getStoredTokens } from '@/services/google-sheets/oauth'
+import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/components/ui/toaster'
 
 export function GoogleSheetsAuth() {
+  const { user } = useAuth()
   const [isConnecting, setIsConnecting] = useState(false)
   const [connected, setConnected] = useState(false)
   const [checking, setChecking] = useState(true)
+  const [tokenInfo, setTokenInfo] = useState<{
+    expiresAt: Date
+    hoursUntilExpiry: number
+    minutesUntilExpiry: number
+    isExpiringSoon: boolean
+  } | null>(null)
 
   useEffect(() => {
     // Check connection status on mount
-    const checkConnection = () => {
+    const checkConnection = async () => {
       try {
-        const connectedStatus = isConnected()
+        if (!user) {
+          setConnected(false)
+          setChecking(false)
+          return
+        }
+        const connectedStatus = await isConnected(user.id)
         setConnected(connectedStatus)
+        
+        // Get token info if connected
+        if (connectedStatus) {
+          const tokens = await getStoredTokens(user.id)
+          if (tokens) {
+            const expiresAt = new Date(tokens.expiresAt)
+            const now = new Date()
+            const timeUntilExpiry = expiresAt.getTime() - now.getTime()
+            const hoursUntilExpiry = Math.floor(timeUntilExpiry / (1000 * 60 * 60))
+            const minutesUntilExpiry = Math.floor((timeUntilExpiry % (1000 * 60 * 60)) / (1000 * 60))
+            setTokenInfo({
+              expiresAt,
+              hoursUntilExpiry,
+              minutesUntilExpiry,
+              isExpiringSoon: timeUntilExpiry < 60 * 60 * 1000, // Less than 1 hour
+            })
+          }
+        }
       } catch (error) {
         console.error('Error checking connection status:', error)
         setConnected(false)
@@ -36,7 +67,7 @@ export function GoogleSheetsAuth() {
     return () => {
       window.removeEventListener('focus', handleFocus)
     }
-  }, [])
+  }, [user])
 
   const handleConnect = () => {
     try {
@@ -53,36 +84,19 @@ export function GoogleSheetsAuth() {
     }
   }
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     try {
-      clearTokens()
+      if (user) {
+        await clearTokens(user.id)
+      }
       setConnected(false)
+      setTokenInfo(null)
       toast.success('Disconnected', 'Google Sheets has been disconnected')
     } catch (error) {
       console.error('Error disconnecting:', error)
       toast.error('Disconnect Error', 'Failed to disconnect Google Sheets')
     }
   }
-
-  const getTokenInfo = () => {
-    const tokens = getStoredTokens()
-    if (!tokens) return null
-
-    const expiresAt = new Date(tokens.expiresAt)
-    const now = new Date()
-    const timeUntilExpiry = expiresAt.getTime() - now.getTime()
-    const hoursUntilExpiry = Math.floor(timeUntilExpiry / (1000 * 60 * 60))
-    const minutesUntilExpiry = Math.floor((timeUntilExpiry % (1000 * 60 * 60)) / (1000 * 60))
-
-    return {
-      expiresAt,
-      hoursUntilExpiry,
-      minutesUntilExpiry,
-      isExpiringSoon: timeUntilExpiry < 60 * 60 * 1000, // Less than 1 hour
-    }
-  }
-
-  const tokenInfo = getTokenInfo()
 
   if (checking) {
     return (

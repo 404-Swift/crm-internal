@@ -1,6 +1,5 @@
-const STORAGE_KEY_ACCESS_TOKEN = 'google_calendar_access_token'
-const STORAGE_KEY_REFRESH_TOKEN = 'google_calendar_refresh_token'
-const STORAGE_KEY_TOKEN_EXPIRY = 'google_calendar_token_expiry'
+import { supabase } from '../supabase/client'
+import * as oauthTokensService from '../supabase/oauth-tokens'
 
 interface TokenResponse {
   access_token: string
@@ -12,6 +11,17 @@ interface StoredTokens {
   accessToken: string
   refreshToken: string
   expiresAt: number
+}
+
+/**
+ * Get the current user ID from Supabase session
+ */
+async function getCurrentUserId(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) {
+    throw new Error('User not authenticated')
+  }
+  return session.user.id
 }
 
 /**
@@ -149,40 +159,35 @@ export async function handleCallback(code: string, state: string): Promise<void>
     throw new Error('Invalid OAuth state. Possible CSRF attack.')
   }
   
+  const userId = await getCurrentUserId()
   const redirectUri = getRedirectUri()
   const tokenResponse = await exchangeCodeForTokens(code, redirectUri)
   
   const expiresAt = Date.now() + (tokenResponse.expires_in * 1000)
   
-  localStorage.setItem(STORAGE_KEY_ACCESS_TOKEN, tokenResponse.access_token)
-  localStorage.setItem(STORAGE_KEY_REFRESH_TOKEN, tokenResponse.refresh_token)
-  localStorage.setItem(STORAGE_KEY_TOKEN_EXPIRY, expiresAt.toString())
+  // Store tokens in Supabase instead of localStorage
+  await oauthTokensService.storeTokens(
+    userId,
+    'google_calendar',
+    tokenResponse.access_token,
+    tokenResponse.refresh_token,
+    expiresAt
+  )
 }
 
 /**
- * Get stored tokens from localStorage
+ * Get stored tokens from Supabase
  */
-export function getStoredTokens(): StoredTokens | null {
-  const accessToken = localStorage.getItem(STORAGE_KEY_ACCESS_TOKEN)
-  const refreshToken = localStorage.getItem(STORAGE_KEY_REFRESH_TOKEN)
-  const expiresAtStr = localStorage.getItem(STORAGE_KEY_TOKEN_EXPIRY)
-  
-  if (!accessToken || !refreshToken || !expiresAtStr) {
-    return null
-  }
-  
-  return {
-    accessToken,
-    refreshToken,
-    expiresAt: parseInt(expiresAtStr, 10),
-  }
+export async function getStoredTokens(userId?: string): Promise<StoredTokens | null> {
+  const currentUserId = userId || await getCurrentUserId()
+  return await oauthTokensService.getStoredTokens(currentUserId, 'google_calendar')
 }
 
 /**
  * Check if the access token is expired or will expire soon (within 5 minutes)
  */
-export function isTokenExpired(tokens: StoredTokens | null = null): boolean {
-  const storedTokens = tokens || getStoredTokens()
+export async function isTokenExpired(userId?: string, tokens: StoredTokens | null = null): Promise<boolean> {
+  const storedTokens = tokens || await getStoredTokens(userId)
   if (!storedTokens) {
     return true
   }
@@ -194,8 +199,9 @@ export function isTokenExpired(tokens: StoredTokens | null = null): boolean {
 /**
  * Refresh the access token using the refresh token
  */
-export async function refreshToken(): Promise<string> {
-  const tokens = getStoredTokens()
+export async function refreshToken(userId?: string): Promise<string> {
+  const currentUserId = userId || await getCurrentUserId()
+  const tokens = await getStoredTokens(currentUserId)
   if (!tokens) {
     throw new Error('No stored tokens found. Please reconnect Google Calendar.')
   }
@@ -223,7 +229,7 @@ export async function refreshToken(): Promise<string> {
   })
   
   if (!response.ok) {
-    clearTokens()
+    await clearTokens(currentUserId)
     const error = await response.json().catch(() => ({ error: { message: response.statusText } }))
     throw new Error(error.error?.message || `Failed to refresh token: ${response.statusText}`)
   }
@@ -231,11 +237,15 @@ export async function refreshToken(): Promise<string> {
   const tokenResponse: TokenResponse = await response.json()
   
   const expiresAt = Date.now() + (tokenResponse.expires_in * 1000)
-  localStorage.setItem(STORAGE_KEY_ACCESS_TOKEN, tokenResponse.access_token)
-  if (tokenResponse.refresh_token) {
-    localStorage.setItem(STORAGE_KEY_REFRESH_TOKEN, tokenResponse.refresh_token)
-  }
-  localStorage.setItem(STORAGE_KEY_TOKEN_EXPIRY, expiresAt.toString())
+  
+  // Update tokens in Supabase
+  await oauthTokensService.updateTokens(
+    currentUserId,
+    'google_calendar',
+    tokenResponse.access_token,
+    tokenResponse.refresh_token,
+    expiresAt
+  )
   
   return tokenResponse.access_token
 }
@@ -243,15 +253,16 @@ export async function refreshToken(): Promise<string> {
 /**
  * Get a valid access token, refreshing if necessary
  */
-export async function getAccessToken(): Promise<string | null> {
-  const tokens = getStoredTokens()
+export async function getAccessToken(userId?: string): Promise<string | null> {
+  const currentUserId = userId || await getCurrentUserId()
+  const tokens = await getStoredTokens(currentUserId)
   if (!tokens) {
     return null
   }
   
-  if (isTokenExpired(tokens)) {
+  if (await isTokenExpired(currentUserId, tokens)) {
     try {
-      return await refreshToken()
+      return await refreshToken(currentUserId)
     } catch (error) {
       console.error('Failed to refresh token:', error)
       return null
@@ -264,20 +275,20 @@ export async function getAccessToken(): Promise<string | null> {
 /**
  * Clear stored tokens (for disconnect)
  */
-export function clearTokens(): void {
-  localStorage.removeItem(STORAGE_KEY_ACCESS_TOKEN)
-  localStorage.removeItem(STORAGE_KEY_REFRESH_TOKEN)
-  localStorage.removeItem(STORAGE_KEY_TOKEN_EXPIRY)
+export async function clearTokens(userId?: string): Promise<void> {
+  const currentUserId = userId || await getCurrentUserId()
+  await oauthTokensService.clearTokens(currentUserId, 'google_calendar')
   sessionStorage.removeItem('google_calendar_oauth_state')
 }
 
 /**
  * Check if user is connected (has valid tokens or refresh token)
  */
-export function isConnected(): boolean {
-  const tokens = getStoredTokens()
-  if (!tokens) {
+export async function isConnected(userId?: string): Promise<boolean> {
+  try {
+    const currentUserId = userId || await getCurrentUserId()
+    return await oauthTokensService.hasTokens(currentUserId, 'google_calendar')
+  } catch {
     return false
   }
-  return !!tokens.refreshToken
 }

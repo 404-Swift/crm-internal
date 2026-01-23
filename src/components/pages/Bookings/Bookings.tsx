@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DashboardLayout } from '@/components/templates/DashboardLayout'
 import { CalendarView } from '@/components/organisms/CalendarView'
@@ -15,7 +15,11 @@ export default function Bookings() {
   const navigate = useNavigate()
   const { sync, isSyncing, lastSyncTime } = useGoogleCalendarSync()
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const calendarConnected = isConnected()
+  const [calendarConnected, setCalendarConnected] = useState(false)
+
+  useEffect(() => {
+    isConnected().then(setCalendarConnected).catch(() => setCalendarConnected(false))
+  }, [])
 
   const handleSync = async () => {
     if (!calendarConnected) {

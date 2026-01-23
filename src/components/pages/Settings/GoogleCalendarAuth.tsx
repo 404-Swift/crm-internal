@@ -5,20 +5,27 @@ import { Icon } from '@/components/atoms/Icon'
 import { CheckCircle2, XCircle, Loader2, AlertCircle, RefreshCw, Calendar } from 'lucide-react'
 import { initiateOAuth, isConnected, clearTokens } from '@/services/google-calendar/oauth'
 import { useGoogleCalendarSync } from '@/hooks/useGoogleCalendarSync'
+import { useAuth } from '@/hooks/useAuth'
 import { getLastSyncTime } from '@/services/google-calendar/sync'
 import { format } from 'date-fns'
 import { toast } from '@/components/ui/toaster'
 
 export function GoogleCalendarAuth() {
+  const { user } = useAuth()
   const [isConnecting, setIsConnecting] = useState(false)
   const [connected, setConnected] = useState(false)
   const [checking, setChecking] = useState(true)
   const { sync, isSyncing, lastSyncTime } = useGoogleCalendarSync()
 
   useEffect(() => {
-    const checkConnection = () => {
+    const checkConnection = async () => {
       try {
-        const connectedStatus = isConnected()
+        if (!user) {
+          setConnected(false)
+          setChecking(false)
+          return
+        }
+        const connectedStatus = await isConnected(user.id)
         setConnected(connectedStatus)
       } catch (error) {
         console.error('Error checking connection status:', error)
@@ -38,7 +45,7 @@ export function GoogleCalendarAuth() {
     return () => {
       window.removeEventListener('focus', handleFocus)
     }
-  }, [])
+  }, [user])
 
   const handleConnect = () => {
     try {
@@ -54,9 +61,11 @@ export function GoogleCalendarAuth() {
     }
   }
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     try {
-      clearTokens()
+      if (user) {
+        await clearTokens(user.id)
+      }
       localStorage.removeItem('google_calendar_sync_token')
       localStorage.removeItem('google_calendar_last_sync')
       setConnected(false)
