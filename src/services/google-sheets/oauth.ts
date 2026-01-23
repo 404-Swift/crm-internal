@@ -1,4 +1,3 @@
-import { supabase } from '../supabase/client'
 import * as oauthTokensService from '../supabase/oauth-tokens'
 
 interface TokenResponse {
@@ -11,17 +10,6 @@ interface StoredTokens {
   accessToken: string
   refreshToken: string
   expiresAt: number
-}
-
-/**
- * Get the current user ID from Supabase session
- */
-async function getCurrentUserId(): Promise<string> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user) {
-    throw new Error('User not authenticated')
-  }
-  return session.user.id
 }
 
 /**
@@ -162,16 +150,14 @@ export async function handleCallback(code: string, state: string): Promise<void>
     throw new Error('Invalid OAuth state. Possible CSRF attack.')
   }
   
-  const userId = await getCurrentUserId()
   const redirectUri = getRedirectUri()
   const tokenResponse = await exchangeCodeForTokens(code, redirectUri)
   
   // Calculate expiration time (expires_in is in seconds)
   const expiresAt = Date.now() + (tokenResponse.expires_in * 1000)
   
-  // Store tokens in Supabase instead of localStorage
+  // Store tokens in Supabase (company-wide, shared by all users)
   await oauthTokensService.storeTokens(
-    userId,
     'google_sheets',
     tokenResponse.access_token,
     tokenResponse.refresh_token,
@@ -180,18 +166,17 @@ export async function handleCallback(code: string, state: string): Promise<void>
 }
 
 /**
- * Get stored tokens from Supabase
+ * Get stored tokens from Supabase (company-wide)
  */
-export async function getStoredTokens(userId?: string): Promise<StoredTokens | null> {
-  const currentUserId = userId || await getCurrentUserId()
-  return await oauthTokensService.getStoredTokens(currentUserId, 'google_sheets')
+export async function getStoredTokens(): Promise<StoredTokens | null> {
+  return await oauthTokensService.getStoredTokens('google_sheets')
 }
 
 /**
  * Check if the access token is expired or will expire soon (within 5 minutes)
  */
-export async function isTokenExpired(userId?: string, tokens: StoredTokens | null = null): Promise<boolean> {
-  const storedTokens = tokens || await getStoredTokens(userId)
+export async function isTokenExpired(tokens: StoredTokens | null = null): Promise<boolean> {
+  const storedTokens = tokens || await getStoredTokens()
   if (!storedTokens) {
     return true
   }
@@ -204,9 +189,8 @@ export async function isTokenExpired(userId?: string, tokens: StoredTokens | nul
 /**
  * Refresh the access token using the refresh token
  */
-export async function refreshToken(userId?: string): Promise<string> {
-  const currentUserId = userId || await getCurrentUserId()
-  const tokens = await getStoredTokens(currentUserId)
+export async function refreshToken(): Promise<string> {
+  const tokens = await getStoredTokens()
   if (!tokens) {
     throw new Error('No stored tokens found. Please reconnect Google Sheets.')
   }
@@ -235,17 +219,16 @@ export async function refreshToken(userId?: string): Promise<string> {
   
   if (!response.ok) {
     // If refresh fails, clear tokens and require re-authentication
-    await clearTokens(currentUserId)
+    await clearTokens()
     const error = await response.json().catch(() => ({ error: { message: response.statusText } }))
     throw new Error(error.error?.message || `Failed to refresh token: ${response.statusText}`)
   }
   
   const tokenResponse: TokenResponse = await response.json()
   
-  // Update stored tokens in Supabase
+  // Update stored tokens in Supabase (company-wide)
   const expiresAt = Date.now() + (tokenResponse.expires_in * 1000)
   await oauthTokensService.updateTokens(
-    currentUserId,
     'google_sheets',
     tokenResponse.access_token,
     tokenResponse.refresh_token,
@@ -258,16 +241,15 @@ export async function refreshToken(userId?: string): Promise<string> {
 /**
  * Get a valid access token, refreshing if necessary
  */
-export async function getAccessToken(userId?: string): Promise<string | null> {
-  const currentUserId = userId || await getCurrentUserId()
-  const tokens = await getStoredTokens(currentUserId)
+export async function getAccessToken(): Promise<string | null> {
+  const tokens = await getStoredTokens()
   if (!tokens) {
     return null
   }
   
-  if (await isTokenExpired(currentUserId, tokens)) {
+  if (await isTokenExpired(tokens)) {
     try {
-      return await refreshToken(currentUserId)
+      return await refreshToken()
     } catch (error) {
       console.error('Failed to refresh token:', error)
       return null
@@ -280,21 +262,19 @@ export async function getAccessToken(userId?: string): Promise<string | null> {
 /**
  * Clear stored tokens (for disconnect)
  */
-export async function clearTokens(userId?: string): Promise<void> {
-  const currentUserId = userId || await getCurrentUserId()
-  await oauthTokensService.clearTokens(currentUserId, 'google_sheets')
+export async function clearTokens(): Promise<void> {
+  await oauthTokensService.clearTokens('google_sheets')
   sessionStorage.removeItem('google_oauth_state')
 }
 
 /**
- * Check if user is connected (has valid tokens or refresh token)
+ * Check if company is connected (has valid tokens or refresh token)
  * Returns true if we have a refresh token, even if access token is expired
  * (since we can refresh it automatically)
  */
-export async function isConnected(userId?: string): Promise<boolean> {
+export async function isConnected(): Promise<boolean> {
   try {
-    const currentUserId = userId || await getCurrentUserId()
-    return await oauthTokensService.hasTokens(currentUserId, 'google_sheets')
+    return await oauthTokensService.hasTokens('google_sheets')
   } catch {
     return false
   }

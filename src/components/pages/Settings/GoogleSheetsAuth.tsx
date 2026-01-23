@@ -4,11 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Icon } from '@/components/atoms/Icon'
 import { CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react'
 import { initiateOAuth, isConnected, clearTokens, getStoredTokens } from '@/services/google-sheets/oauth'
-import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/components/ui/toaster'
 
 export function GoogleSheetsAuth() {
-  const { user } = useAuth()
   const [isConnecting, setIsConnecting] = useState(false)
   const [connected, setConnected] = useState(false)
   const [checking, setChecking] = useState(true)
@@ -23,17 +21,12 @@ export function GoogleSheetsAuth() {
     // Check connection status on mount
     const checkConnection = async () => {
       try {
-        if (!user) {
-          setConnected(false)
-          setChecking(false)
-          return
-        }
-        const connectedStatus = await isConnected(user.id)
+        const connectedStatus = await isConnected()
         setConnected(connectedStatus)
         
         // Get token info if connected
         if (connectedStatus) {
-          const tokens = await getStoredTokens(user.id)
+          const tokens = await getStoredTokens()
           if (tokens) {
             const expiresAt = new Date(tokens.expiresAt)
             const now = new Date()
@@ -67,7 +60,7 @@ export function GoogleSheetsAuth() {
     return () => {
       window.removeEventListener('focus', handleFocus)
     }
-  }, [user])
+  }, [])
 
   const handleConnect = () => {
     try {
@@ -86,9 +79,7 @@ export function GoogleSheetsAuth() {
 
   const handleDisconnect = async () => {
     try {
-      if (user) {
-        await clearTokens(user.id)
-      }
+      await clearTokens()
       setConnected(false)
       setTokenInfo(null)
       toast.success('Disconnected', 'Google Sheets has been disconnected')

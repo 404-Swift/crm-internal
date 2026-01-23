@@ -4,7 +4,6 @@ export type ServiceType = 'google_calendar' | 'google_sheets'
 
 export interface OAuthTokens {
   id: string
-  user_id: string
   service_type: ServiceType
   access_token: string
   refresh_token: string
@@ -20,10 +19,9 @@ export interface StoredTokens {
 }
 
 /**
- * Store OAuth tokens in Supabase for a user
+ * Store OAuth tokens in Supabase (company-wide, shared by all users)
  */
 export async function storeTokens(
-  userId: string,
   serviceType: ServiceType,
   accessToken: string,
   refreshToken: string,
@@ -34,13 +32,12 @@ export async function storeTokens(
   const { error } = await supabase
     .from('oauth_tokens')
     .upsert({
-      user_id: userId,
       service_type: serviceType,
       access_token: accessToken,
       refresh_token: refreshToken,
       expires_at: expiresAtDate,
     }, {
-      onConflict: 'user_id,service_type',
+      onConflict: 'service_type',
     })
 
   if (error) {
@@ -49,16 +46,14 @@ export async function storeTokens(
 }
 
 /**
- * Get stored OAuth tokens from Supabase for a user
+ * Get stored OAuth tokens from Supabase (company-wide)
  */
 export async function getStoredTokens(
-  userId: string,
   serviceType: ServiceType
 ): Promise<StoredTokens | null> {
   const { data, error } = await supabase
     .from('oauth_tokens')
     .select('*')
-    .eq('user_id', userId)
     .eq('service_type', serviceType)
     .single()
 
@@ -85,7 +80,6 @@ export async function getStoredTokens(
  * Update OAuth tokens in Supabase (for token refresh)
  */
 export async function updateTokens(
-  userId: string,
   serviceType: ServiceType,
   accessToken: string,
   refreshToken?: string,
@@ -106,7 +100,6 @@ export async function updateTokens(
   const { error } = await supabase
     .from('oauth_tokens')
     .update(updateData)
-    .eq('user_id', userId)
     .eq('service_type', serviceType)
 
   if (error) {
@@ -118,13 +111,11 @@ export async function updateTokens(
  * Clear OAuth tokens from Supabase (for disconnect)
  */
 export async function clearTokens(
-  userId: string,
   serviceType: ServiceType
 ): Promise<void> {
   const { error } = await supabase
     .from('oauth_tokens')
     .delete()
-    .eq('user_id', userId)
     .eq('service_type', serviceType)
 
   if (error) {
@@ -133,12 +124,11 @@ export async function clearTokens(
 }
 
 /**
- * Check if user has OAuth tokens for a service
+ * Check if OAuth tokens exist for a service (company-wide)
  */
 export async function hasTokens(
-  userId: string,
   serviceType: ServiceType
 ): Promise<boolean> {
-  const tokens = await getStoredTokens(userId, serviceType)
+  const tokens = await getStoredTokens(serviceType)
   return tokens !== null && !!tokens.refreshToken
 }

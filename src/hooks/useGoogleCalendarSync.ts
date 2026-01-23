@@ -15,7 +15,7 @@ export function useGoogleCalendarSync() {
       timeMax?: string
     } = {}) => {
       if (!user) throw new Error('User not authenticated')
-      if (!(await isConnected(user.id))) {
+      if (!(await isConnected())) {
         throw new Error('Google Calendar is not connected. Please connect it in Settings first.')
       }
       return syncBookingsFromGoogleCalendar(user.id, calendarId, timeMin, timeMax)
