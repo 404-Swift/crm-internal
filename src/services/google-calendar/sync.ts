@@ -181,24 +181,37 @@ export async function syncBookingsFromGoogleCalendar(
   // For full syncs (without syncToken), check for orphaned bookings
   // Bookings that exist in CRM but no longer exist in Google Calendar
   // Only check bookings within the sync time range to avoid false positives
-  if (!syncToken && googleCalendarEventIds.size > 0 && timeMin && timeMax) {
+  if (!syncToken && timeMin && timeMax) {
     try {
-      // Get bookings within the sync time range that have a google_calendar_event_id
+      // Get all bookings within the sync time range
       const bookingsInRange = await bookingsService.getByDateRange(userId, timeMin, timeMax)
-      const orphanedBookings = bookingsInRange.filter(
-        (booking) =>
-          booking.google_calendar_event_id &&
-          !googleCalendarEventIds.has(booking.google_calendar_event_id)
-      )
+      
+      // Find orphaned bookings:
+      // 1. Bookings with google_calendar_event_id that don't exist in Google Calendar
+      // 2. Bookings without google_calendar_event_id (local-only bookings that were never synced)
+      const orphanedBookings = bookingsInRange.filter((booking) => {
+        if (!booking.google_calendar_event_id) {
+          // Booking without event ID - it's an orphan since Google Calendar is source of truth
+          return true
+        }
+        // Booking with event ID that doesn't exist in Google Calendar
+        return !googleCalendarEventIds.has(booking.google_calendar_event_id)
+      })
 
       // Delete orphaned bookings
       for (const booking of orphanedBookings) {
         try {
           await bookingsService.delete(booking.id, userId)
           deleted++
-          console.log(
-            `Deleted orphaned booking ${booking.id} (Google Calendar event ${booking.google_calendar_event_id} no longer exists)`
-          )
+          if (booking.google_calendar_event_id) {
+            console.log(
+              `Deleted orphaned booking ${booking.id} (Google Calendar event ${booking.google_calendar_event_id} no longer exists)`
+            )
+          } else {
+            console.log(
+              `Deleted orphaned booking ${booking.id} (no Google Calendar event ID - local-only booking)`
+            )
+          }
         } catch (error) {
           console.error(`Failed to delete orphaned booking ${booking.id}:`, error)
           errors++
