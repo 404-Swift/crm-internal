@@ -35,6 +35,28 @@ export default function Bookings() {
     }
   }
 
+  const handleForceFullSync = async () => {
+    if (!calendarConnected) {
+      toast.error(
+        'Not Connected',
+        'Please connect Google Calendar in Settings first'
+      )
+      navigate('/settings')
+      return
+    }
+
+    // Clear sync token to force a full sync
+    localStorage.removeItem('google_calendar_sync_token')
+    
+    try {
+      await sync({})
+      toast.success('Full Sync Complete', 'All deleted events have been detected and removed')
+    } catch (error) {
+      console.error('Force sync error:', error)
+      // Error is already handled by the hook
+    }
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -57,6 +79,19 @@ export default function Bookings() {
                 size={18}
               />
               {isSyncing ? 'Syncing...' : 'Sync Calendar'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleForceFullSync}
+              disabled={isSyncing || !calendarConnected}
+              title="Force a full sync to detect all deleted events"
+            >
+              <Icon
+                icon={RefreshCw}
+                className={`mr-2 ${isSyncing ? 'animate-spin' : ''}`}
+                size={18}
+              />
+              {isSyncing ? 'Syncing...' : 'Force Full Sync'}
             </Button>
           </div>
         </div>
