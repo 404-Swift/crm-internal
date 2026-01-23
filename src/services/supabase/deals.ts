@@ -143,7 +143,7 @@ export const dealsService = {
     if (error) throw error
     
     // Fetch contact separately if contact_id exists
-    let contact: Deal['contact'] = null
+    let contact: Deal['contact'] = undefined
     if (data.contact_id) {
       try {
         const { data: contactData } = await supabase
