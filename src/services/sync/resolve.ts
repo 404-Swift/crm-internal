@@ -132,10 +132,18 @@ export async function resolveContactConflicts(
         }
         
         // Sync the exact resolved values to Google Sheets
-        await googleSheetsContactsService.update(resolvedContactComplete)
+        try {
+          await googleSheetsContactsService.update(resolvedContactComplete, false)
+        } catch (syncError) {
+          console.error(`Failed to sync contact ${resolution.recordId} to Google Sheets:`, syncError)
+          // Re-throw to ensure user knows sync failed
+          throw new Error(`Failed to sync contact to Google Sheets: ${syncError instanceof Error ? syncError.message : String(syncError)}`)
+        }
       }
     } catch (error) {
       console.error(`Failed to resolve contact ${resolution.recordId}:`, error)
+      // Re-throw to show error to user
+      throw error
     }
   }
 }
@@ -259,10 +267,16 @@ export async function resolveDealConflicts(
         }
         
         // Sync the exact resolved values to Google Sheets
-        await googleSheetsDealsService.update(resolvedDealComplete)
+        try {
+          await googleSheetsDealsService.update(resolvedDealComplete, false)
+        } catch (syncError) {
+          console.error(`Failed to sync deal ${resolution.recordId} to Google Sheets:`, syncError)
+          throw new Error(`Failed to sync deal to Google Sheets: ${syncError instanceof Error ? syncError.message : String(syncError)}`)
+        }
       }
     } catch (error) {
       console.error(`Failed to resolve deal ${resolution.recordId}:`, error)
+      throw error
     }
   }
 }
@@ -326,25 +340,44 @@ export async function resolveActivityConflicts(
         }
       } else if (conflict.isNewInSupabase && supabaseActivity && resolution.action === 'use-supabase') {
         // New in Supabase - sync to Sheets
-        await googleSheetsActivitiesService.create(supabaseActivity)
+        try {
+          await googleSheetsActivitiesService.create(supabaseActivity, false)
+        } catch (syncError) {
+          console.error(`Failed to sync activity to Google Sheets:`, syncError)
+          throw new Error(`Failed to sync activity to Google Sheets: ${syncError instanceof Error ? syncError.message : String(syncError)}`)
+        }
+        continue
       } else if (supabaseActivity && sheetsActivity && (resolution.action === 'use-supabase' || resolution.action === 'use-sheets' || resolution.action === 'merge')) {
         // Both exist - use the one specified
         if (resolution.action === 'use-sheets') {
           // Update Supabase with Sheets data (delete and recreate)
           await activitiesService.delete(supabaseActivity.id, userId)
-          await activitiesService.create({
+          const newActivity = await activitiesService.create({
             type: sheetsActivity.type,
             contact_id: sheetsActivity.contact_id,
             deal_id: sheetsActivity.deal_id,
             description: sheetsActivity.description,
           }, userId)
+          // Sync to Sheets to ensure consistency
+          try {
+            await googleSheetsActivitiesService.create(newActivity, false)
+          } catch (syncError) {
+            console.error(`Failed to sync activity to Google Sheets:`, syncError)
+            throw new Error(`Failed to sync activity to Google Sheets: ${syncError instanceof Error ? syncError.message : String(syncError)}`)
+          }
         } else if (resolution.action === 'use-supabase') {
           // Sync Supabase to Sheets
-          await googleSheetsActivitiesService.create(supabaseActivity)
+          try {
+            await googleSheetsActivitiesService.create(supabaseActivity, false)
+          } catch (syncError) {
+            console.error(`Failed to sync activity to Google Sheets:`, syncError)
+            throw new Error(`Failed to sync activity to Google Sheets: ${syncError instanceof Error ? syncError.message : String(syncError)}`)
+          }
         }
       }
     } catch (error) {
       console.error(`Failed to resolve activity ${resolution.recordId}:`, error)
+      throw error
     }
   }
 }

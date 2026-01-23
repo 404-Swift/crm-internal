@@ -5,7 +5,7 @@ import { Button } from '@/components/atoms/Button'
 import { Badge } from '@/components/atoms/Badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent } from '@/components/ui/card'
-import { ArrowLeft, Check, GitCompare, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Check, GitCompare, ChevronDown, ChevronUp, RefreshCw, Info, AlertCircle } from 'lucide-react'
 import { Icon } from '@/components/atoms/Icon'
 import { useBidirectionalSync } from '@/hooks/useBidirectionalSync'
 import { toast } from '@/components/ui/toaster'
@@ -40,6 +40,7 @@ export default function ConflictResolution() {
   const [bulkAction, setBulkAction] = useState<'use-supabase' | 'use-sheets' | null>(null)
   const [expandedRecords, setExpandedRecords] = useState<Set<string>>(new Set())
   const [hasCompared, setHasCompared] = useState(false)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   const currentConflicts = useMemo(() => {
     switch (activeTab) {
@@ -169,8 +170,16 @@ export default function ConflictResolution() {
 
   const handleResolve = async () => {
     if (selectedRecords.size === 0) {
+      toast.error('No records selected', 'Please select at least one record to resolve')
       return
     }
+
+    // Show confirmation dialog
+    setShowConfirmDialog(true)
+  }
+
+  const confirmResolve = async () => {
+    setShowConfirmDialog(false)
 
     try {
       const resolutions: Resolution<any>[] = []
@@ -220,14 +229,24 @@ export default function ConflictResolution() {
         await resolveActivities(resolutions)
       }
 
-      toast.success(`${activeTab === 'activity' ? 'Activities' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1) + 's'} resolved`, 'Conflicts have been resolved and synced')
+      const resolvedCount = resolutions.length
+      toast.success(
+        `${resolvedCount} ${activeTab === 'activity' ? 'activit' : activeTab.slice(0, -1)}${resolvedCount !== 1 ? 'ies' : 'y'} resolved and synced`,
+        `Data has been synchronized between Supabase and Google Sheets`
+      )
       
       setSelectedRecords(new Set())
       setFieldResolutions(new Map())
       setBulkAction(null)
+      
+      // Refresh the comparison to show updated state
       await handleCompare()
     } catch (error: any) {
-      toast.error('Resolution failed', error.message || 'Failed to resolve conflicts')
+      console.error('Resolution error:', error)
+      toast.error(
+        'Resolution failed', 
+        error.message || 'Failed to resolve conflicts. Please try again or check the console for details.'
+      )
     }
   }
 
@@ -378,22 +397,46 @@ export default function ConflictResolution() {
                 </span>
               </div>
               <div className="flex gap-2">
-                <Button
-                  variant={bulkAction === 'use-supabase' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => handleBulkSelect('use-supabase')}
-                  disabled={selectedRecords.size === 0}
-                >
-                  Use All Supabase
-                </Button>
-                <Button
-                  variant={bulkAction === 'use-sheets' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => handleBulkSelect('use-sheets')}
-                  disabled={selectedRecords.size === 0}
-                >
-                  Use All Sheets
-                </Button>
+                <div className="relative group">
+                  <Button
+                    variant={bulkAction === 'use-supabase' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleBulkSelect('use-supabase')}
+                    disabled={selectedRecords.size === 0}
+                    className="gap-2"
+                  >
+                    <Icon icon={Check} size={16} />
+                    Keep Supabase Data
+                  </Button>
+                  <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
+                    <div className="bg-popover text-popover-foreground text-xs rounded-lg p-2 shadow-lg border border-border w-64">
+                      <div className="font-semibold mb-1">Keep Supabase Data</div>
+                      <div className="text-muted-foreground">
+                        Supabase values will be kept and synced to Google Sheets. Google Sheets data will be overwritten.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="relative group">
+                  <Button
+                    variant={bulkAction === 'use-sheets' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleBulkSelect('use-sheets')}
+                    disabled={selectedRecords.size === 0}
+                    className="gap-2"
+                  >
+                    <Icon icon={Check} size={16} />
+                    Keep Google Sheets Data
+                  </Button>
+                  <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
+                    <div className="bg-popover text-popover-foreground text-xs rounded-lg p-2 shadow-lg border border-border w-64">
+                      <div className="font-semibold mb-1">Keep Google Sheets Data</div>
+                      <div className="text-muted-foreground">
+                        Google Sheets values will be kept and synced to Supabase. Supabase data will be overwritten.
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -468,11 +511,44 @@ export default function ConflictResolution() {
                             </div>
                           </div>
 
+                          {/* Action Summary for Selected Records */}
+                          {isSelected && (conflict.isNewInSheets || conflict.isNewInSupabase || hasFieldConflicts) && (
+                            <div className="mt-4 p-3 rounded-lg bg-primary/10 border border-primary/20">
+                              <div className="flex items-start gap-2 text-sm">
+                                <Icon icon={Info} size={16} className="text-primary mt-0.5 flex-shrink-0" />
+                                <div>
+                                  {conflict.isNewInSheets && (
+                                    <div className="font-medium text-primary mb-1">
+                                      Will create in Supabase and sync to Google Sheets
+                                    </div>
+                                  )}
+                                  {conflict.isNewInSupabase && (
+                                    <div className="font-medium text-primary mb-1">
+                                      Will sync to Google Sheets
+                                    </div>
+                                  )}
+                                  {hasFieldConflicts && !conflict.isNewInSheets && !conflict.isNewInSupabase && (
+                                    <div className="font-medium text-primary mb-1">
+                                      {allFieldsResolved 
+                                        ? 'Will update both Supabase and Google Sheets with selected values'
+                                        : 'Please resolve all field conflicts before syncing'
+                                      }
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                           {/* Quick Preview for New Records */}
                           {(conflict.isNewInSheets || conflict.isNewInSupabase) && !isExpanded && (
                             <div className="grid grid-cols-2 gap-4 mt-4">
                               {conflict.supabaseRecord && (
-                                <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                                <div className={`p-4 rounded-lg border transition-all ${
+                                  isSelected && conflict.isNewInSupabase
+                                    ? 'border-primary bg-primary/10'
+                                    : 'bg-muted/50 border-border'
+                                }`}>
                                   <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
                                     Supabase
                                   </div>
@@ -499,7 +575,11 @@ export default function ConflictResolution() {
                                 </div>
                               )}
                               {conflict.sheetsRecord && (
-                                <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                                <div className={`p-4 rounded-lg border transition-all ${
+                                  isSelected && conflict.isNewInSheets
+                                    ? 'border-primary bg-primary/10'
+                                    : 'bg-muted/50 border-border'
+                                }`}>
                                   <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
                                     Google Sheets
                                   </div>
@@ -545,22 +625,50 @@ export default function ConflictResolution() {
                                       className="p-4 rounded-lg border border-border bg-muted/20"
                                     >
                                       <div className="flex items-center justify-between mb-4">
-                                        <span className="text-sm font-semibold">{fieldName}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-semibold">{fieldName}</span>
+                                          <div className="relative group">
+                                            <Icon icon={Info} size={14} className="text-muted-foreground cursor-help" />
+                                            <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
+                                              <div className="bg-popover text-popover-foreground text-xs rounded-lg p-2 shadow-lg border border-border w-56">
+                                                Choose which value to keep. The selected value will be synced to both Supabase and Google Sheets.
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
                                         <div className="flex gap-2">
-                                          <Button
-                                            variant={fieldRes === 'supabase' ? 'default' : 'outline'}
-                                            size="sm"
-                                            onClick={() => handleFieldResolution(conflict.id, fieldConflict.field, 'supabase')}
-                                          >
-                                            Supabase
-                                          </Button>
-                                          <Button
-                                            variant={fieldRes === 'sheets' ? 'default' : 'outline'}
-                                            size="sm"
-                                            onClick={() => handleFieldResolution(conflict.id, fieldConflict.field, 'sheets')}
-                                          >
-                                            Sheets
-                                          </Button>
+                                          <div className="relative group">
+                                            <Button
+                                              variant={fieldRes === 'supabase' ? 'default' : 'outline'}
+                                              size="sm"
+                                              onClick={() => handleFieldResolution(conflict.id, fieldConflict.field, 'supabase')}
+                                              className="gap-2"
+                                            >
+                                              {fieldRes === 'supabase' && <Icon icon={Check} size={14} />}
+                                              Keep Supabase
+                                            </Button>
+                                            <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-10">
+                                              <div className="bg-popover text-popover-foreground text-xs rounded-lg p-2 shadow-lg border border-border w-56">
+                                                Keep the Supabase value and sync it to Google Sheets
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="relative group">
+                                            <Button
+                                              variant={fieldRes === 'sheets' ? 'default' : 'outline'}
+                                              size="sm"
+                                              onClick={() => handleFieldResolution(conflict.id, fieldConflict.field, 'sheets')}
+                                              className="gap-2"
+                                            >
+                                              {fieldRes === 'sheets' && <Icon icon={Check} size={14} />}
+                                              Keep Sheets
+                                            </Button>
+                                            <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-10">
+                                              <div className="bg-popover text-popover-foreground text-xs rounded-lg p-2 shadow-lg border border-border w-56">
+                                                Keep the Google Sheets value and sync it to Supabase
+                                              </div>
+                                            </div>
+                                          </div>
                                         </div>
                                       </div>
                                       <div className="grid grid-cols-2 gap-4">
@@ -607,31 +715,98 @@ export default function ConflictResolution() {
             {selectedRecords.size > 0 && (
               <div className="sticky bottom-0 bg-background border-t border-border p-4 -mx-6 mt-6">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    {selectedRecords.size} record{selectedRecords.size !== 1 ? 's' : ''} selected
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground">
+                      {selectedRecords.size} record{selectedRecords.size !== 1 ? 's' : ''} selected
+                    </span>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Icon icon={Info} size={14} />
+                      <span>Selected records will be synced to both Supabase and Google Sheets</span>
+                    </div>
+                  </div>
                   <div className="flex gap-3">
-                    <Button variant="outline" onClick={() => navigate('/settings')} disabled={isResolving}>
-                      Cancel
+                    <Button variant="outline" onClick={() => {
+                      setSelectedRecords(new Set())
+                      setFieldResolutions(new Map())
+                      setBulkAction(null)
+                    }} disabled={isResolving}>
+                      Clear Selection
                     </Button>
                     <Button 
                       onClick={handleResolve} 
                       disabled={isResolving}
+                      className="gap-2"
                     >
                       {isResolving ? (
                         <>
-                          <Icon icon={GitCompare} className="mr-2 animate-spin" size={18} />
-                          Resolving...
+                          <Icon icon={GitCompare} className="animate-spin" size={18} />
+                          Syncing...
                         </>
                       ) : (
                         <>
-                          <Icon icon={Check} className="mr-2" size={18} />
-                          Resolve {selectedRecords.size} Record{selectedRecords.size !== 1 ? 's' : ''}
+                          <Icon icon={Check} size={18} />
+                          Sync {selectedRecords.size} Record{selectedRecords.size !== 1 ? 's' : ''}
                         </>
                       )}
                     </Button>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Confirmation Dialog */}
+            {showConfirmDialog && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <Card className="w-full max-w-md mx-4">
+                  <CardContent className="p-6">
+                    <div className="flex items-start gap-4 mb-6">
+                      <div className="rounded-full bg-primary/10 p-2">
+                        <Icon icon={AlertCircle} className="text-primary" size={24} />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold mb-2">Confirm Sync</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          You are about to sync {selectedRecords.size} record{selectedRecords.size !== 1 ? 's' : ''}. 
+                          This will:
+                        </p>
+                        <ul className="text-sm text-muted-foreground space-y-2 mb-4 list-disc list-inside">
+                          <li>Update Supabase with your selected values</li>
+                          <li>Sync the same values to Google Sheets</li>
+                          <li>Ensure both systems have identical data</li>
+                        </ul>
+                        <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground">
+                          <strong>Note:</strong> This action cannot be undone. Make sure you've selected the correct values to keep.
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 justify-end">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowConfirmDialog(false)}
+                        disabled={isResolving}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={confirmResolve}
+                        disabled={isResolving}
+                        className="gap-2"
+                      >
+                        {isResolving ? (
+                          <>
+                            <Icon icon={GitCompare} className="animate-spin" size={18} />
+                            Syncing...
+                          </>
+                        ) : (
+                          <>
+                            <Icon icon={Check} size={18} />
+                            Confirm & Sync
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
           </div>
