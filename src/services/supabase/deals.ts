@@ -127,7 +127,8 @@ export const dealsService = {
     userId: string
   ): Promise<Deal> {
     // Strip out 'contact' relation if it accidentally got passed in
-    const { contact, ...cleanInput } = input as any
+    // Rename to ignoredContact to avoid variable name clashes
+    const { contact: ignoredContact, ...cleanInput } = input as any
 
     const update: DealUpdate = {
       ...cleanInput,
