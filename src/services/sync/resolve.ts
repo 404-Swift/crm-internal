@@ -168,22 +168,26 @@ export async function resolveDealConflicts(
       const sheetsDeal = conflict.sheetsRecord || sheetsMap.get(resolution.recordId)
 
       if (resolution.action === 'use-sheets' && sheetsDeal) {
+        // Extract only the fields that can be updated (exclude relations and metadata)
+        const { contact, created_at, updated_at, user_id, id, ...dealData } = sheetsDeal as any
         resolvedDeal = {
-          title: sheetsDeal.title,
-          contact_id: sheetsDeal.contact_id,
-          amount: sheetsDeal.amount,
-          stage: sheetsDeal.stage,
-          probability: sheetsDeal.probability,
-          expected_close_date: sheetsDeal.expected_close_date,
+          title: dealData.title,
+          contact_id: dealData.contact_id,
+          amount: dealData.amount,
+          stage: dealData.stage,
+          probability: dealData.probability,
+          expected_close_date: dealData.expected_close_date,
         }
       } else if (resolution.action === 'use-supabase' && supabaseDeal) {
+        // Extract only the fields that can be updated (exclude relations and metadata)
+        const { contact, created_at, updated_at, user_id, id, ...dealData } = supabaseDeal as any
         resolvedDeal = {
-          title: supabaseDeal.title,
-          contact_id: supabaseDeal.contact_id,
-          amount: supabaseDeal.amount,
-          stage: supabaseDeal.stage,
-          probability: supabaseDeal.probability,
-          expected_close_date: supabaseDeal.expected_close_date,
+          title: dealData.title,
+          contact_id: dealData.contact_id,
+          amount: dealData.amount,
+          stage: dealData.stage,
+          probability: dealData.probability,
+          expected_close_date: dealData.expected_close_date,
         }
       } else if (resolution.action === 'merge' && resolution.fieldResolutions && supabaseDeal && sheetsDeal) {
         const baseDeal = { ...supabaseDeal }
@@ -195,8 +199,9 @@ export async function resolveDealConflicts(
             (resolvedDeal as any)[fieldKey] = baseDeal[fieldKey]
           }
         })
+        // Exclude 'contact' relation and timestamp metadata from the update payload
         Object.keys(baseDeal).forEach(key => {
-          if (!(key in resolvedDeal)) {
+          if (key !== 'contact' && key !== 'created_at' && key !== 'updated_at' && !(key in resolvedDeal)) {
             (resolvedDeal as any)[key] = (baseDeal as any)[key]
           }
         })

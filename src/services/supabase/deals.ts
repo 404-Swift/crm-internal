@@ -126,8 +126,11 @@ export const dealsService = {
     input: Partial<DealFormInput>,
     userId: string
   ): Promise<Deal> {
+    // Strip out 'contact' relation if it accidentally got passed in
+    const { contact, ...cleanInput } = input as any
+
     const update: DealUpdate = {
-      ...input,
+      ...cleanInput,
       updated_at: new Date().toISOString(),
     }
 
