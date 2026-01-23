@@ -1,6 +1,7 @@
 import { googleSheetsClient } from './client'
 import type { Contact, ContactFormInput } from '@/types/contact'
 import { toast } from '@/components/ui/toaster'
+import { isConnected } from './oauth'
 
 const SHEET_NAME = 'Contacts'
 
@@ -37,10 +38,14 @@ const CONTACTS_HEADERS = [
 ]
 
 export const googleSheetsContactsService = {
-  async create(contact: Contact): Promise<void> {
+  async create(contact: Contact, silent: boolean = true): Promise<void> {
     if (!googleSheetsClient) {
-      console.warn('Google Sheets client not configured')
-      return
+      return // Silent fail if not configured
+    }
+
+    // Check if connected before attempting
+    if (!isConnected()) {
+      return // Silent fail if not authenticated
     }
 
     try {
@@ -58,22 +63,26 @@ export const googleSheetsContactsService = {
       await googleSheetsClient.appendRow(SHEET_NAME, row)
     } catch (error) {
       console.error('Failed to write contact to Google Sheets:', error)
-      // Only show toast for non-auth errors (401/403 are expected when OAuth2 not set up)
+      // Only show toast for non-auth errors and if not in silent mode
       const errorMessage = error instanceof Error ? error.message : String(error)
-      if (!errorMessage.includes('401') && !errorMessage.includes('403')) {
+      if (!silent && !errorMessage.includes('401') && !errorMessage.includes('403') && !errorMessage.toLowerCase().includes('unauthorized')) {
         toast.error(
           'Google Sheets sync failed',
-          'Contact saved to database, but failed to sync to Google Sheets. Please check your configuration.'
+          'Contact saved to database, but failed to sync to Google Sheets.'
         )
       }
       // Don't throw - allow Supabase write to succeed
     }
   },
 
-  async update(contact: Contact): Promise<void> {
+  async update(contact: Contact, silent: boolean = true): Promise<void> {
     if (!googleSheetsClient) {
-      console.warn('Google Sheets client not configured')
-      return
+      return // Silent fail if not configured
+    }
+
+    // Check if connected before attempting
+    if (!isConnected()) {
+      return // Silent fail if not authenticated
     }
 
     try {
@@ -85,22 +94,30 @@ export const googleSheetsContactsService = {
         await googleSheetsClient.updateRow(SHEET_NAME, rowIndex, row)
       } else {
         // If not found, append as new row
-        await this.create(contact)
+        await this.create(contact, silent)
       }
     } catch (error) {
       console.error('Failed to update contact in Google Sheets:', error)
-      toast.error(
-        'Google Sheets sync failed',
-        'Contact updated in database, but failed to sync to Google Sheets.'
-      )
+      // Only show toast for non-auth errors and if not in silent mode
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      if (!silent && !errorMessage.includes('401') && !errorMessage.includes('403') && !errorMessage.toLowerCase().includes('unauthorized')) {
+        toast.error(
+          'Google Sheets sync failed',
+          'Contact updated in database, but failed to sync to Google Sheets.'
+        )
+      }
       // Don't throw - allow Supabase write to succeed
     }
   },
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, _silent: boolean = true): Promise<void> {
     if (!googleSheetsClient) {
-      console.warn('Google Sheets client not configured')
-      return
+      return // Silent fail if not configured
+    }
+
+    // Check if connected before attempting
+    if (!isConnected()) {
+      return // Silent fail if not authenticated
     }
 
     try {

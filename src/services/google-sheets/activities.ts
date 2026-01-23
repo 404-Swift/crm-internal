@@ -1,6 +1,7 @@
 import { googleSheetsClient } from './client'
 import type { Activity, ActivityFormInput } from '@/types/activity'
 import { toast } from '@/components/ui/toaster'
+import { isConnected } from './oauth'
 
 const SHEET_NAME = 'Activities'
 
@@ -29,10 +30,14 @@ const ACTIVITIES_HEADERS = [
 ]
 
 export const googleSheetsActivitiesService = {
-  async create(activity: Activity): Promise<void> {
+  async create(activity: Activity, silent: boolean = true): Promise<void> {
     if (!googleSheetsClient) {
-      console.warn('Google Sheets client not configured')
-      return
+      return // Silent fail if not configured
+    }
+
+    // Check if connected before attempting
+    if (!isConnected()) {
+      return // Silent fail if not authenticated
     }
 
     try {
@@ -48,22 +53,26 @@ export const googleSheetsActivitiesService = {
       await googleSheetsClient.appendRow(SHEET_NAME, row)
     } catch (error) {
       console.error('Failed to write activity to Google Sheets:', error)
-      // Only show toast for non-auth errors (401/403 are expected when OAuth2 not set up)
+      // Only show toast for non-auth errors and if not in silent mode
       const errorMessage = error instanceof Error ? error.message : String(error)
-      if (!errorMessage.includes('401') && !errorMessage.includes('403')) {
+      if (!silent && !errorMessage.includes('401') && !errorMessage.includes('403') && !errorMessage.toLowerCase().includes('unauthorized')) {
         toast.error(
           'Google Sheets sync failed',
-          'Activity saved to database, but failed to sync to Google Sheets. Please check your configuration.'
+          'Activity saved to database, but failed to sync to Google Sheets.'
         )
       }
       // Don't throw - allow Supabase write to succeed
     }
   },
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, _silent: boolean = true): Promise<void> {
     if (!googleSheetsClient) {
-      console.warn('Google Sheets client not configured')
-      return
+      return // Silent fail if not configured
+    }
+
+    // Check if connected before attempting
+    if (!isConnected()) {
+      return // Silent fail if not authenticated
     }
 
     try {

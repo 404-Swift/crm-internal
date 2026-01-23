@@ -1,5 +1,6 @@
 import { getEvents, type GoogleCalendarEvent } from './client'
 import { bookingsService } from '../supabase/bookings'
+import { parseISO, compareAsc } from 'date-fns'
 
 /**
  * Convert Google Calendar event to booking format
@@ -89,15 +90,45 @@ export async function syncBookingsFromGoogleCalendar(
             continue
           }
 
-          const bookingData = googleEventToBooking(event)
-          
-          await bookingsService.upsertFromGoogleCalendar(
+          // Check if booking already exists in Supabase by Google Calendar event ID
+          const existingBooking = await bookingsService.getByGoogleCalendarEventId(
             event.id,
-            bookingData,
             userId
-          )
+          ).catch(() => null)
+
+          // Get event updated time from Google Calendar (if available)
+          // Note: Google Calendar API doesn't always return 'updated' field in list view
+          // We'll use current time as fallback, but prefer to fetch full event if needed
+          const calendarUpdated = event.updated ? parseISO(event.updated) : new Date()
           
-          synced++
+          // Conflict resolution: Compare updated_at timestamps
+          if (existingBooking) {
+            const supabaseUpdated = parseISO(existingBooking.updated_at)
+            
+            // If Google Calendar was updated more recently, update from Calendar
+            if (compareAsc(calendarUpdated, supabaseUpdated) > 0) {
+              const bookingData = googleEventToBooking(event)
+              await bookingsService.upsertFromGoogleCalendar(
+                event.id,
+                bookingData,
+                userId
+              )
+              synced++
+            } else {
+              // Supabase is more recent, skip this event (CRM is source of truth)
+              // The booking will be synced to Calendar on next update
+              continue
+            }
+          } else {
+            // New event, create booking
+            const bookingData = googleEventToBooking(event)
+            await bookingsService.upsertFromGoogleCalendar(
+              event.id,
+              bookingData,
+              userId
+            )
+            synced++
+          }
         } catch (error) {
           console.error(`Failed to sync event ${event.id}:`, error)
           errors++

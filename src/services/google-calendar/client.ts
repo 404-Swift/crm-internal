@@ -23,6 +23,7 @@ export interface GoogleCalendarEvent {
   }>
   recurringEventId?: string
   recurrence?: string[]
+  updated?: string
 }
 
 export interface GoogleCalendarEventsResponse {
@@ -130,4 +131,95 @@ export async function getCalendars(): Promise<{ items: Array<{ id: string; summa
   }
 
   return response.json()
+}
+
+/**
+ * Create a new event in Google Calendar
+ */
+export async function createEvent(
+  calendarId: string = 'primary',
+  eventData: Omit<GoogleCalendarEvent, 'id'>
+): Promise<GoogleCalendarEvent> {
+  const accessToken = await getAccessToken()
+  if (!accessToken) {
+    throw new Error('Google Calendar access token not available. Please authenticate.')
+  }
+
+  const url = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events`
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(eventData),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: { message: response.statusText } }))
+    throw new Error(error.error?.message || `Failed to create calendar event: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+/**
+ * Update an existing event in Google Calendar
+ */
+export async function updateEvent(
+  calendarId: string,
+  eventId: string,
+  eventData: Partial<Omit<GoogleCalendarEvent, 'id'>>
+): Promise<GoogleCalendarEvent> {
+  const accessToken = await getAccessToken()
+  if (!accessToken) {
+    throw new Error('Google Calendar access token not available. Please authenticate.')
+  }
+
+  const url = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
+  
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(eventData),
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: { message: response.statusText } }))
+    throw new Error(error.error?.message || `Failed to update calendar event: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+/**
+ * Delete an event from Google Calendar
+ */
+export async function deleteEvent(
+  calendarId: string,
+  eventId: string
+): Promise<void> {
+  const accessToken = await getAccessToken()
+  if (!accessToken) {
+    throw new Error('Google Calendar access token not available. Please authenticate.')
+  }
+
+  const url = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`
+  
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: { message: response.statusText } }))
+    throw new Error(error.error?.message || `Failed to delete calendar event: ${response.statusText}`)
+  }
 }

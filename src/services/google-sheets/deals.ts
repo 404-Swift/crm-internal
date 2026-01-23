@@ -1,6 +1,7 @@
 import { googleSheetsClient } from './client'
 import type { Deal, DealFormInput } from '@/types/deal'
 import { toast } from '@/components/ui/toaster'
+import { isConnected } from './oauth'
 
 const SHEET_NAME = 'Deals'
 
@@ -35,10 +36,14 @@ const DEALS_HEADERS = [
 ]
 
 export const googleSheetsDealsService = {
-  async create(deal: Deal): Promise<void> {
+  async create(deal: Deal, silent: boolean = true): Promise<void> {
     if (!googleSheetsClient) {
-      console.warn('Google Sheets client not configured')
-      return
+      return // Silent fail if not configured
+    }
+
+    // Check if connected before attempting
+    if (!isConnected()) {
+      return // Silent fail if not authenticated
     }
 
     try {
@@ -56,22 +61,26 @@ export const googleSheetsDealsService = {
       await googleSheetsClient.appendRow(SHEET_NAME, row)
     } catch (error) {
       console.error('Failed to write deal to Google Sheets:', error)
-      // Only show toast for non-auth errors (401/403 are expected when OAuth2 not set up)
+      // Only show toast for non-auth errors and if not in silent mode
       const errorMessage = error instanceof Error ? error.message : String(error)
-      if (!errorMessage.includes('401') && !errorMessage.includes('403')) {
+      if (!silent && !errorMessage.includes('401') && !errorMessage.includes('403') && !errorMessage.toLowerCase().includes('unauthorized')) {
         toast.error(
           'Google Sheets sync failed',
-          'Deal saved to database, but failed to sync to Google Sheets. Please check your configuration.'
+          'Deal saved to database, but failed to sync to Google Sheets.'
         )
       }
       // Don't throw - allow Supabase write to succeed
     }
   },
 
-  async update(deal: Deal): Promise<void> {
+  async update(deal: Deal, silent: boolean = true): Promise<void> {
     if (!googleSheetsClient) {
-      console.warn('Google Sheets client not configured')
-      return
+      return // Silent fail if not configured
+    }
+
+    // Check if connected before attempting
+    if (!isConnected()) {
+      return // Silent fail if not authenticated
     }
 
     try {
@@ -83,22 +92,30 @@ export const googleSheetsDealsService = {
         await googleSheetsClient.updateRow(SHEET_NAME, rowIndex, row)
       } else {
         // If not found, append as new row
-        await this.create(deal)
+        await this.create(deal, silent)
       }
     } catch (error) {
       console.error('Failed to update deal in Google Sheets:', error)
-      toast.error(
-        'Google Sheets sync failed',
-        'Deal updated in database, but failed to sync to Google Sheets.'
-      )
+      // Only show toast for non-auth errors and if not in silent mode
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      if (!silent && !errorMessage.includes('401') && !errorMessage.includes('403') && !errorMessage.toLowerCase().includes('unauthorized')) {
+        toast.error(
+          'Google Sheets sync failed',
+          'Deal updated in database, but failed to sync to Google Sheets.'
+        )
+      }
       // Don't throw - allow Supabase write to succeed
     }
   },
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, _silent: boolean = true): Promise<void> {
     if (!googleSheetsClient) {
-      console.warn('Google Sheets client not configured')
-      return
+      return // Silent fail if not configured
+    }
+
+    // Check if connected before attempting
+    if (!isConnected()) {
+      return // Silent fail if not authenticated
     }
 
     try {

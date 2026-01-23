@@ -87,8 +87,8 @@ export function initiateOAuth(): void {
   
   storeOAuthState(state)
   
-  // Request both Sheets and Calendar scopes
-  const scope = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/calendar.readonly'
+  // Request both Sheets and Calendar scopes (Calendar with write access)
+  const scope = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/calendar.events'
   const responseType = 'code'
   const accessType = 'offline'
   const prompt = 'consent'
