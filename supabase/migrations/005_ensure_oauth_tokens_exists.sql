@@ -1,4 +1,7 @@
--- Create oauth_tokens table to store OAuth tokens (company-wide, shared by all users)
+-- Ensure oauth_tokens table exists and has correct structure
+-- This migration ensures the table is created even if previous migrations failed
+
+-- Create oauth_tokens table if it doesn't exist
 CREATE TABLE IF NOT EXISTS oauth_tokens (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   service_type TEXT NOT NULL CHECK (service_type IN ('google_calendar', 'google_sheets')),
@@ -10,10 +13,11 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
   CONSTRAINT oauth_tokens_service_type_unique UNIQUE (service_type)
 );
 
--- Create index for faster lookups
+-- Create index for faster lookups (IF NOT EXISTS handles duplicates)
 CREATE INDEX IF NOT EXISTS idx_oauth_tokens_service_type ON oauth_tokens(service_type);
 
--- Create trigger to update updated_at
+-- Create trigger to update updated_at (drop and recreate to ensure it exists)
+DROP TRIGGER IF EXISTS update_oauth_tokens_updated_at ON oauth_tokens;
 CREATE TRIGGER update_oauth_tokens_updated_at
   BEFORE UPDATE ON oauth_tokens
   FOR EACH ROW
@@ -21,6 +25,12 @@ CREATE TRIGGER update_oauth_tokens_updated_at
 
 -- Enable Row Level Security
 ALTER TABLE oauth_tokens ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist (to recreate with correct syntax)
+DROP POLICY IF EXISTS "Authenticated users can view oauth tokens" ON oauth_tokens;
+DROP POLICY IF EXISTS "Authenticated users can insert oauth tokens" ON oauth_tokens;
+DROP POLICY IF EXISTS "Authenticated users can update oauth tokens" ON oauth_tokens;
+DROP POLICY IF EXISTS "Authenticated users can delete oauth tokens" ON oauth_tokens;
 
 -- RLS Policies for oauth_tokens - all authenticated users can read/update (company-wide integration)
 -- Using auth.uid() IS NOT NULL is more reliable than auth.role()

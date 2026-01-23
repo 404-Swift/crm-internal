@@ -26,21 +26,33 @@ export async function storeTokens(
 ): Promise<void> {
   const expiresAtDate = new Date(expiresAt).toISOString()
 
-  const insert: OAuthTokensInsert = {
-    service_type: serviceType,
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    expires_at: expiresAtDate,
-  }
+  // First, try to get existing tokens
+  const existing = await getStoredTokens(serviceType)
 
-  const { error } = await (supabase
-    .from('oauth_tokens') as any)
-    .upsert(insert, {
-      onConflict: 'service_type',
-    })
+  if (existing) {
+    // Update existing tokens
+    await updateTokens(serviceType, accessToken, refreshToken, expiresAt)
+  } else {
+    // Insert new tokens
+    const insert: OAuthTokensInsert = {
+      service_type: serviceType,
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_at: expiresAtDate,
+    }
 
-  if (error) {
-    throw new Error(`Failed to store OAuth tokens: ${error.message}`)
+    const { error } = await (supabase
+      .from('oauth_tokens') as any)
+      .insert(insert)
+
+    if (error) {
+      // If insert fails due to conflict, try update instead
+      if (error.code === '23505') {
+        await updateTokens(serviceType, accessToken, refreshToken, expiresAt)
+      } else {
+        throw new Error(`Failed to store OAuth tokens: ${error.message}`)
+      }
+    }
   }
 }
 
