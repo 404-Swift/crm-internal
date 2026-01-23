@@ -241,42 +241,92 @@ export async function resolveDealConflicts(
               expected_close_date: sheetsDeal.expected_close_date,
             }, userId)
             // Update Sheets row with new Supabase ID
-            await googleSheetsDealsService.update({ ...created, id: sheetsDeal.id } as Deal)
+            try {
+              await googleSheetsDealsService.update({ ...created, id: sheetsDeal.id } as Deal, false)
+            } catch (syncError) {
+              console.error(`Failed to sync deal to Google Sheets after creation:`, syncError)
+              const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
+              throw new Error(`Failed to sync deal to Google Sheets: ${errorMessage}`)
+            }
           } else {
-            throw error
+            const errorMessage = error.message || String(error)
+            throw new Error(`Failed to create deal in Supabase: ${errorMessage}`)
           }
         }
         continue
       } else if (conflict.isNewInSupabase && supabaseDeal && resolution.action === 'use-supabase') {
-        await googleSheetsDealsService.create(supabaseDeal)
+        // New record in Supabase - sync to Sheets
+        try {
+          await googleSheetsDealsService.create(supabaseDeal, false)
+        } catch (syncError) {
+          console.error(`Failed to sync new deal ${resolution.recordId} to Google Sheets:`, syncError)
+          const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
+          throw new Error(`Failed to sync deal to Google Sheets: ${errorMessage}`)
+        }
         continue
       }
 
       if (Object.keys(resolvedDeal).length > 0 && supabaseDeal) {
-        await dealsService.update(resolution.recordId, resolvedDeal, userId)
-        
-        // Construct complete deal object with resolved values to ensure both sides have identical values
-        const resolvedDealComplete: Deal = {
-          ...supabaseDeal,
-          ...resolvedDeal,
-          id: resolution.recordId,
-          user_id: supabaseDeal.user_id,
-          created_at: supabaseDeal.created_at,
-          updated_at: new Date().toISOString(),
-          contact: supabaseDeal.contact, // Preserve contact relation
-        }
-        
-        // Sync the exact resolved values to Google Sheets
         try {
-          await googleSheetsDealsService.update(resolvedDealComplete, false)
-        } catch (syncError) {
-          console.error(`Failed to sync deal ${resolution.recordId} to Google Sheets:`, syncError)
-          throw new Error(`Failed to sync deal to Google Sheets: ${syncError instanceof Error ? syncError.message : String(syncError)}`)
+          // Validate contact_id exists if it's being updated
+          if (resolvedDeal.contact_id && resolvedDeal.contact_id !== supabaseDeal.contact_id) {
+            const { contactsService } = await import('../supabase/contacts')
+            const contact = await contactsService.getById(resolvedDeal.contact_id, userId)
+            if (!contact) {
+              throw new Error(`Contact with ID ${resolvedDeal.contact_id} does not exist. Please ensure the contact exists in Supabase before syncing.`)
+            }
+          }
+
+          // Update in Supabase first
+          const updatedDeal = await dealsService.update(resolution.recordId, resolvedDeal, userId)
+          
+          // Construct complete deal object with resolved values to ensure both sides have identical values
+          const resolvedDealComplete: Deal = {
+            ...updatedDeal,
+            ...resolvedDeal,
+            id: resolution.recordId,
+            user_id: updatedDeal.user_id,
+            created_at: updatedDeal.created_at,
+            updated_at: new Date().toISOString(),
+            contact: updatedDeal.contact, // Preserve contact relation
+          }
+          
+          // Sync the exact resolved values to Google Sheets
+          try {
+            await googleSheetsDealsService.update(resolvedDealComplete, false)
+          } catch (syncError) {
+            console.error(`Failed to sync deal ${resolution.recordId} to Google Sheets:`, syncError)
+            const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
+            // Check if it's an auth error
+            if (errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('unauthorized')) {
+              throw new Error(`Google Sheets authentication failed. Please reconnect Google Sheets in Settings.`)
+            }
+            throw new Error(`Failed to sync deal "${supabaseDeal.title || resolution.recordId}" to Google Sheets: ${errorMessage}`)
+          }
+        } catch (updateError: any) {
+          console.error(`Failed to update deal ${resolution.recordId} in Supabase:`, updateError)
+          let errorMessage = updateError instanceof Error ? updateError.message : String(updateError)
+          
+          // Provide more helpful error messages for common issues
+          if (updateError?.code === '23503') {
+            errorMessage = `Invalid contact reference. The contact ID "${resolvedDeal.contact_id}" does not exist in Supabase.`
+          } else if (updateError?.code === '23505') {
+            errorMessage = `Duplicate deal detected. A deal with this information already exists.`
+          } else if (updateError?.code === 'PGRST116') {
+            errorMessage = `Deal not found. It may have been deleted.`
+          } else if (updateError?.message) {
+            errorMessage = updateError.message
+          }
+          
+          throw new Error(`Failed to update deal "${supabaseDeal.title || resolution.recordId}": ${errorMessage}`)
         }
+      } else {
+        console.warn(`No resolved data for deal ${resolution.recordId}, skipping`)
       }
     } catch (error) {
-      console.error(`Failed to resolve deal ${resolution.recordId}:`, error)
-      throw error
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error(`Failed to resolve deal ${resolution.recordId}:`, errorMessage, error)
+      throw new Error(`Failed to resolve deal: ${errorMessage}`)
     }
   }
 }

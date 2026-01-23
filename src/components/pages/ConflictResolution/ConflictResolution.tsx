@@ -243,9 +243,13 @@ export default function ConflictResolution() {
       await handleCompare()
     } catch (error: any) {
       console.error('Resolution error:', error)
+      const errorMessage = error?.message || error?.toString() || 'Unknown error occurred'
+      const errorDetails = error?.response?.data?.message || error?.code || ''
+      const fullMessage = errorDetails ? `${errorMessage} (${errorDetails})` : errorMessage
+      
       toast.error(
         'Resolution failed', 
-        error.message || 'Failed to resolve conflicts. Please try again or check the console for details.'
+        fullMessage || 'Failed to resolve conflicts. Please try again or check the console for details.'
       )
     }
   }
