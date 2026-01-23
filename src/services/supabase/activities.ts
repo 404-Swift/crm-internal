@@ -111,10 +111,14 @@ export const activitiesService = {
       deal: (data as any).deal as Activity['deal'],
     } as Activity
 
-    // Write to Google Sheets in background (source of truth)
-    googleSheetsActivitiesService.create(activity).catch((err) => {
-      console.error('Background Google Sheets sync failed:', err)
-    })
+    // Write to Google Sheets immediately (source of truth)
+    // Await to ensure sync completes before returning
+    try {
+      await googleSheetsActivitiesService.create(activity, false)
+    } catch (err) {
+      console.error('Google Sheets sync failed:', err)
+      // Don't throw - allow Supabase write to succeed, but log the error
+    }
 
     return activity
   },

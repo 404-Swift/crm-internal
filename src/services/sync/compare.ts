@@ -50,9 +50,9 @@ export function compareContacts(
     const record = supabase || sheets!
     
     if (supabase && sheets) {
-      // Compare fields
+      // Compare fields (exclude updated_at - it's metadata, not data)
       const fieldsToCompare: (keyof Contact)[] = [
-        'email', 'first_name', 'last_name', 'company', 'phone', 'source', 'status', 'updated_at'
+        'email', 'first_name', 'last_name', 'company', 'phone', 'source', 'status'
       ]
       
       for (const field of fieldsToCompare) {
@@ -81,16 +81,20 @@ export function compareContacts(
       }
     }
     
-    conflicts.push({
-      id,
-      record,
-      supabaseRecord: supabase || null,
-      sheetsRecord: sheets || null,
-      conflicts: fieldConflicts,
-      isNewInSheets: !supabase && !!sheets,
-      isNewInSupabase: !!supabase && !sheets,
-      isDeleted: false, // We'll handle deletions separately
-    })
+    // Only add to conflicts if there are actual field conflicts or if record is new in one system
+    // Don't add records that are identical (no conflicts and exist in both)
+    if (fieldConflicts.length > 0 || (!supabase && !!sheets) || (!!supabase && !sheets)) {
+      conflicts.push({
+        id,
+        record,
+        supabaseRecord: supabase || null,
+        sheetsRecord: sheets || null,
+        conflicts: fieldConflicts,
+        isNewInSheets: !supabase && !!sheets,
+        isNewInSupabase: !!supabase && !sheets,
+        isDeleted: false, // We'll handle deletions separately
+      })
+    }
   }
   
   return conflicts
@@ -116,8 +120,9 @@ export function compareDeals(
     const record = supabase || sheets!
     
     if (supabase && sheets) {
+      // Compare fields (exclude updated_at - it's metadata, not data)
       const fieldsToCompare: (keyof Deal)[] = [
-        'title', 'contact_id', 'amount', 'stage', 'probability', 'expected_close_date', 'updated_at'
+        'title', 'contact_id', 'amount', 'stage', 'probability', 'expected_close_date'
       ]
       
       for (const field of fieldsToCompare) {
@@ -148,16 +153,20 @@ export function compareDeals(
       }
     }
     
-    conflicts.push({
-      id,
-      record,
-      supabaseRecord: supabase || null,
-      sheetsRecord: sheets || null,
-      conflicts: fieldConflicts,
-      isNewInSheets: !supabase && !!sheets,
-      isNewInSupabase: !!supabase && !sheets,
-      isDeleted: false,
-    })
+    // Only add to conflicts if there are actual field conflicts or if record is new in one system
+    // Don't add records that are identical (no conflicts and exist in both)
+    if (fieldConflicts.length > 0 || (!supabase && !!sheets) || (!!supabase && !sheets)) {
+      conflicts.push({
+        id,
+        record,
+        supabaseRecord: supabase || null,
+        sheetsRecord: sheets || null,
+        conflicts: fieldConflicts,
+        isNewInSheets: !supabase && !!sheets,
+        isNewInSupabase: !!supabase && !sheets,
+        isDeleted: false,
+      })
+    }
   }
   
   return conflicts
@@ -206,16 +215,20 @@ export function compareActivities(
       }
     }
     
-    conflicts.push({
-      id,
-      record,
-      supabaseRecord: supabase || null,
-      sheetsRecord: sheets || null,
-      conflicts: fieldConflicts,
-      isNewInSheets: !supabase && !!sheets,
-      isNewInSupabase: !!supabase && !sheets,
-      isDeleted: false,
-    })
+    // Only add to conflicts if there are actual field conflicts or if record is new in one system
+    // Don't add records that are identical (no conflicts and exist in both)
+    if (fieldConflicts.length > 0 || (!supabase && !!sheets) || (!!supabase && !sheets)) {
+      conflicts.push({
+        id,
+        record,
+        supabaseRecord: supabase || null,
+        sheetsRecord: sheets || null,
+        conflicts: fieldConflicts,
+        isNewInSheets: !supabase && !!sheets,
+        isNewInSupabase: !!supabase && !sheets,
+        isDeleted: false,
+      })
+    }
   }
   
   return conflicts

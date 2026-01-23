@@ -109,10 +109,14 @@ export const dealsService = {
       contact: (data as any).contact as Deal['contact'],
     } as Deal
 
-    // Write to Google Sheets in background (source of truth)
-    googleSheetsDealsService.create(deal).catch((err) => {
-      console.error('Background Google Sheets sync failed:', err)
-    })
+    // Write to Google Sheets immediately (source of truth)
+    // Await to ensure sync completes before returning
+    try {
+      await googleSheetsDealsService.create(deal, false)
+    } catch (err) {
+      console.error('Google Sheets sync failed:', err)
+      // Don't throw - allow Supabase write to succeed, but log the error
+    }
 
     return deal
   },
@@ -151,10 +155,14 @@ export const dealsService = {
       contact: (data as any).contact as Deal['contact'],
     } as Deal
 
-    // Update Google Sheets in background (source of truth)
-    googleSheetsDealsService.update(deal).catch((err) => {
-      console.error('Background Google Sheets sync failed:', err)
-    })
+    // Update Google Sheets immediately (source of truth)
+    // Await to ensure sync completes before returning
+    try {
+      await googleSheetsDealsService.update(deal, false)
+    } catch (err) {
+      console.error('Google Sheets sync failed:', err)
+      // Don't throw - allow Supabase write to succeed, but log the error
+    }
 
     return deal
   },

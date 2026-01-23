@@ -54,11 +54,14 @@ export const contactsService = {
     
     const contact = (data as ContactRow) as Contact
 
-    // Write to Google Sheets in background (source of truth)
-    // Don't await - let it run async, but handle errors gracefully
-    googleSheetsContactsService.create(contact).catch((err) => {
-      console.error('Background Google Sheets sync failed:', err)
-    })
+    // Write to Google Sheets immediately (source of truth)
+    // Await to ensure sync completes before returning
+    try {
+      await googleSheetsContactsService.create(contact, false)
+    } catch (err) {
+      console.error('Google Sheets sync failed:', err)
+      // Don't throw - allow Supabase write to succeed, but log the error
+    }
 
     return contact
   },
@@ -86,10 +89,14 @@ export const contactsService = {
     
     const contact = (data as ContactRow) as Contact
 
-    // Update Google Sheets in background (source of truth)
-    googleSheetsContactsService.update(contact).catch((err) => {
-      console.error('Background Google Sheets sync failed:', err)
-    })
+    // Update Google Sheets immediately (source of truth)
+    // Await to ensure sync completes before returning
+    try {
+      await googleSheetsContactsService.update(contact, false)
+    } catch (err) {
+      console.error('Google Sheets sync failed:', err)
+      // Don't throw - allow Supabase write to succeed, but log the error
+    }
 
     return contact
   },
