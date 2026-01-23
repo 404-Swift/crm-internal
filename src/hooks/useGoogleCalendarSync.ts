@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { syncBookingsFromGoogleCalendar, getLastSyncTime, setLastSyncTime } from '@/services/google-calendar/sync'
+import { isConnected } from '@/services/google-calendar/oauth'
 import { useAuth } from './useAuth'
 import { toast } from '@/components/ui/toaster'
 
@@ -14,6 +15,9 @@ export function useGoogleCalendarSync() {
       timeMax?: string
     } = {}) => {
       if (!user) throw new Error('User not authenticated')
+      if (!isConnected()) {
+        throw new Error('Google Calendar is not connected. Please connect it in Settings first.')
+      }
       return syncBookingsFromGoogleCalendar(user.id, calendarId, timeMin, timeMax)
     },
     onSuccess: (result) => {
