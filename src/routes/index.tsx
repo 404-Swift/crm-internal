@@ -5,6 +5,8 @@ import Contacts from '@/components/pages/Contacts'
 import ContactDetail from '@/components/pages/ContactDetail'
 import Deals from '@/components/pages/Deals'
 import DealDetail from '@/components/pages/DealDetail'
+import Bookings from '@/components/pages/Bookings'
+import TeamMembers from '@/components/pages/TeamMembers'
 import Settings from '@/components/pages/Settings'
 import ConflictResolution from '@/components/pages/ConflictResolution/ConflictResolution'
 import Login from '@/components/pages/Login'
@@ -101,6 +103,22 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <DealDetail />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/bookings',
+    element: (
+      <ProtectedRoute>
+        <Bookings />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/team-members',
+    element: (
+      <ProtectedRoute>
+        <TeamMembers />
       </ProtectedRoute>
     ),
   },

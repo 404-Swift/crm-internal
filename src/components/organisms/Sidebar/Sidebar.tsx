@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, TrendingUp, Settings } from 'lucide-react'
+import { LayoutDashboard, Users, TrendingUp, Calendar, UserCheck, Settings } from 'lucide-react'
 import { Icon } from '@/components/atoms/Icon'
 import { cn } from '@/lib/utils'
 
@@ -7,6 +7,8 @@ const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/contacts', label: 'Contacts', icon: Users },
   { path: '/deals', label: 'Deals', icon: TrendingUp },
+  { path: '/bookings', label: 'Bookings', icon: Calendar },
+  { path: '/team-members', label: 'Team Members', icon: UserCheck },
   { path: '/settings', label: 'Settings', icon: Settings },
 ]
 

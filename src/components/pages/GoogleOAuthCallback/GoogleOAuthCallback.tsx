@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { handleCallback } from '@/services/google-sheets/oauth'
+import { handleCallback as handleSheetsCallback } from '@/services/google-sheets/oauth'
+import { handleCallback as handleCalendarCallback } from '@/services/google-calendar/oauth'
 import { toast } from '@/components/ui/toaster'
 import { Card, CardContent } from '@/components/ui/card'
 
@@ -38,11 +39,55 @@ export default function GoogleOAuthCallback() {
           throw new Error('No state parameter received. Possible CSRF attack.')
         }
 
-        // Exchange code for tokens
-        await handleCallback(code, state)
+        // Try to determine which service initiated the OAuth by checking stored state
+        const sheetsState = sessionStorage.getItem('google_oauth_state')
+        const calendarState = sessionStorage.getItem('google_calendar_oauth_state')
+        
+        let connectedServices: string[] = []
+        
+        // Try Google Sheets callback
+        if (sheetsState === state) {
+          try {
+            await handleSheetsCallback(code, state)
+            connectedServices.push('Google Sheets')
+          } catch (error) {
+            console.error('Failed to handle Sheets callback:', error)
+          }
+        }
+        
+        // Try Google Calendar callback
+        if (calendarState === state) {
+          try {
+            await handleCalendarCallback(code, state)
+            connectedServices.push('Google Calendar')
+          } catch (error) {
+            console.error('Failed to handle Calendar callback:', error)
+          }
+        }
+        
+        // If neither matched, try both (in case state was cleared)
+        if (connectedServices.length === 0) {
+          try {
+            await handleSheetsCallback(code, state)
+            connectedServices.push('Google Sheets')
+          } catch (error) {
+            // Ignore - might not be Sheets
+          }
+          try {
+            await handleCalendarCallback(code, state)
+            connectedServices.push('Google Calendar')
+          } catch (error) {
+            // Ignore - might not be Calendar
+          }
+        }
+
+        if (connectedServices.length === 0) {
+          throw new Error('Could not determine which service to connect')
+        }
 
         setStatus('success')
-        toast.success('Google Sheets Connected', 'Successfully connected to Google Sheets')
+        const serviceNames = connectedServices.join(' and ')
+        toast.success(`${serviceNames} Connected`, `Successfully connected to ${serviceNames}`)
 
         // Redirect to settings after a short delay
         setTimeout(() => {
@@ -50,7 +95,7 @@ export default function GoogleOAuthCallback() {
         }, 1500)
       } catch (error) {
         console.error('OAuth callback error:', error)
-        const message = error instanceof Error ? error.message : 'Failed to connect Google Sheets'
+        const message = error instanceof Error ? error.message : 'Failed to connect to Google services'
         setErrorMessage(message)
         setStatus('error')
         toast.error('Connection Failed', message)
@@ -71,7 +116,7 @@ export default function GoogleOAuthCallback() {
             {status === 'loading' && (
               <>
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                <p className="text-muted-foreground">Connecting to Google Sheets...</p>
+                <p className="text-muted-foreground">Connecting to Google...</p>
               </>
             )}
 

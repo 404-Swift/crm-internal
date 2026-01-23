@@ -5,6 +5,7 @@ import { Button } from '@/components/atoms/Button'
 import { AlertCircle, GitCompare } from 'lucide-react'
 import { Icon } from '@/components/atoms/Icon'
 import { GoogleSheetsAuth } from './GoogleSheetsAuth'
+import { GoogleCalendarAuth } from './GoogleCalendarAuth'
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -20,6 +21,8 @@ export default function Settings() {
         </div>
 
         <GoogleSheetsAuth />
+
+        <GoogleCalendarAuth />
 
         <Card>
           <CardHeader>
