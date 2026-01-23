@@ -62,30 +62,41 @@ export async function storeTokens(
 export async function getStoredTokens(
   serviceType: ServiceType
 ): Promise<StoredTokens | null> {
-  const { data, error } = await supabase
-    .from('oauth_tokens')
-    .select('*')
-    .eq('service_type', serviceType)
-    .single()
+  try {
+    const { data, error } = await (supabase
+      .from('oauth_tokens') as any)
+      .select('*')
+      .eq('service_type', serviceType)
+      .single()
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      // No tokens found
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No tokens found
+        return null
+      }
+      // If 406 error, table might not exist or RLS is blocking - return null to allow insert
+      if (error.message?.includes('406') || error.status === 406) {
+        console.warn('OAuth tokens table may not be accessible:', error.message)
+        return null
+      }
+      throw new Error(`Failed to get OAuth tokens: ${error.message}`)
+    }
+
+    if (!data) {
       return null
     }
-    throw new Error(`Failed to get OAuth tokens: ${error.message}`)
-  }
 
-  if (!data) {
+    const row = data as OAuthTokensRow
+
+    return {
+      accessToken: row.access_token,
+      refreshToken: row.refresh_token,
+      expiresAt: new Date(row.expires_at).getTime(),
+    }
+  } catch (error: any) {
+    // If table doesn't exist or any other error, return null to allow insert attempt
+    console.warn('Error getting OAuth tokens, will try to insert:', error)
     return null
-  }
-
-  const row = data as OAuthTokensRow
-
-  return {
-    accessToken: row.access_token,
-    refreshToken: row.refresh_token,
-    expiresAt: new Date(row.expires_at).getTime(),
   }
 }
 

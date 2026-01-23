@@ -1,7 +1,7 @@
--- Ensure oauth_tokens table exists and has correct structure
--- This migration ensures the table is created even if previous migrations failed
+-- Complete setup for oauth_tokens table
+-- This migration ensures everything is properly configured
 
--- Create oauth_tokens table if it doesn't exist
+-- Step 1: Create table if it doesn't exist (without constraint first)
 CREATE TABLE IF NOT EXISTS oauth_tokens (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   service_type TEXT NOT NULL CHECK (service_type IN ('google_calendar', 'google_sheets')),
@@ -9,14 +9,51 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
   refresh_token TEXT NOT NULL,
   expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT oauth_tokens_service_type_unique UNIQUE (service_type)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create index for faster lookups (IF NOT EXISTS handles duplicates)
+-- Step 2: Drop any existing unique constraints on service_type
+DO $$ 
+DECLARE
+  constraint_record RECORD;
+BEGIN
+  FOR constraint_record IN 
+    SELECT conname 
+    FROM pg_constraint 
+    WHERE conrelid = 'oauth_tokens'::regclass 
+    AND contype = 'u'
+  LOOP
+    -- Check if this constraint is on service_type
+    IF EXISTS (
+      SELECT 1 
+      FROM pg_constraint c
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+      WHERE c.conname = constraint_record.conname
+      AND c.conrelid = 'oauth_tokens'::regclass
+      AND a.attname = 'service_type'
+    ) THEN
+      EXECUTE format('ALTER TABLE oauth_tokens DROP CONSTRAINT IF EXISTS %I', constraint_record.conname);
+    END IF;
+  END LOOP;
+END $$;
+
+-- Step 3: Add the named unique constraint
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'oauth_tokens_service_type_unique' 
+    AND conrelid = 'oauth_tokens'::regclass
+  ) THEN
+    ALTER TABLE oauth_tokens 
+      ADD CONSTRAINT oauth_tokens_service_type_unique UNIQUE (service_type);
+  END IF;
+END $$;
+
+-- Step 4: Create index
 CREATE INDEX IF NOT EXISTS idx_oauth_tokens_service_type ON oauth_tokens(service_type);
 
--- Create trigger to update updated_at (only if it doesn't exist)
+-- Step 5: Create trigger
 DO $$ 
 BEGIN
   IF NOT EXISTS (
@@ -31,17 +68,15 @@ BEGIN
   END IF;
 END $$;
 
--- Enable Row Level Security
+-- Step 6: Enable RLS
 ALTER TABLE oauth_tokens ENABLE ROW LEVEL SECURITY;
 
--- Drop existing policies if they exist (to recreate with correct syntax)
+-- Step 7: Drop and recreate policies with correct syntax
 DROP POLICY IF EXISTS "Authenticated users can view oauth tokens" ON oauth_tokens;
 DROP POLICY IF EXISTS "Authenticated users can insert oauth tokens" ON oauth_tokens;
 DROP POLICY IF EXISTS "Authenticated users can update oauth tokens" ON oauth_tokens;
 DROP POLICY IF EXISTS "Authenticated users can delete oauth tokens" ON oauth_tokens;
 
--- RLS Policies for oauth_tokens - all authenticated users can read/update (company-wide integration)
--- Using auth.uid() IS NOT NULL is more reliable than auth.role()
 CREATE POLICY "Authenticated users can view oauth tokens"
   ON oauth_tokens FOR SELECT
   USING (auth.uid() IS NOT NULL);
