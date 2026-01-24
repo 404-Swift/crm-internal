@@ -91,6 +91,10 @@ export async function resolveContactConflicts(
         // New record in Supabase - sync to Sheets
         await googleSheetsContactsService.create(supabaseContact)
         continue
+      } else if (conflict.isNewInSupabase && supabaseContact && resolution.action === 'use-sheets' && !sheetsContact) {
+        // Record was deleted from Sheets - delete from Supabase too
+        await contactsService.delete(resolution.recordId, userId)
+        continue
       } else if (resolution.action === 'use-sheets' && sheetsContact) {
         // Use entire sheets record (for existing records with differences)
         resolvedContact = {
@@ -267,6 +271,10 @@ export async function resolveDealConflicts(
           const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
           throw new Error(`Failed to sync deal to Google Sheets: ${errorMessage}`)
         }
+        continue
+      } else if (conflict.isNewInSupabase && supabaseDeal && resolution.action === 'use-sheets' && !sheetsDeal) {
+        // Record was deleted from Sheets - delete from Supabase too
+        await dealsService.delete(resolution.recordId, userId)
         continue
       } else if (resolution.action === 'use-sheets' && sheetsDeal) {
         // Extract only the fields that can be updated (exclude relations and metadata)
@@ -484,6 +492,10 @@ export async function resolveActivityConflicts(
           console.error(`Failed to sync activity to Google Sheets:`, syncError)
           throw new Error(`Failed to sync activity to Google Sheets: ${syncError instanceof Error ? syncError.message : String(syncError)}`)
         }
+        continue
+      } else if (conflict.isNewInSupabase && supabaseActivity && resolution.action === 'use-sheets' && !sheetsActivity) {
+        // Record was deleted from Sheets - delete from Supabase too
+        await activitiesService.delete(supabaseActivity.id, userId)
         continue
       } else if (supabaseActivity && sheetsActivity && (resolution.action === 'use-supabase' || resolution.action === 'use-sheets' || resolution.action === 'merge')) {
         // Both exist - use the one specified
