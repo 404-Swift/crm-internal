@@ -190,7 +190,33 @@ export const dealsService = {
   },
 
   async delete(id: string, userId: string): Promise<void> {
-    // Delete from Supabase first
+    // Before deleting deal, find and delete all associated activities from Google Sheets
+    // (Supabase will cascade delete activities automatically via foreign key)
+    try {
+      const { data: associatedActivities } = await supabase
+        .from('activities')
+        .select('id')
+        .eq('deal_id', id)
+        .eq('user_id', userId)
+
+      if (associatedActivities && associatedActivities.length > 0) {
+        const { googleSheetsActivitiesService } = await import('../google-sheets/activities')
+        for (const activity of associatedActivities) {
+          try {
+            await googleSheetsActivitiesService.delete(activity.id)
+            console.log(`Cascade deleted activity ${activity.id} from Google Sheets (deal ${id} deleted)`)
+          } catch (activityDeleteError) {
+            console.warn(`Failed to cascade delete activity ${activity.id} from Google Sheets:`, activityDeleteError)
+            // Continue deleting other activities even if one fails
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch associated activities for cascade delete:', error)
+      // Continue with deal deletion even if cascade delete fails
+    }
+
+    // Delete from Supabase (this will cascade delete activities in Supabase via foreign key)
     const { error } = await supabase
       .from('deals')
       .delete()

@@ -109,7 +109,54 @@ export const contactsService = {
   },
 
   async delete(id: string, userId: string): Promise<void> {
-    // Delete from Supabase first
+    // Before deleting contact, find and delete all associated deals and activities from Google Sheets
+    // (Supabase will cascade delete them automatically via foreign key)
+    try {
+      // Delete associated deals
+      const { data: associatedDeals } = await supabase
+        .from('deals')
+        .select('id')
+        .eq('contact_id', id)
+        .eq('user_id', userId)
+
+      if (associatedDeals && associatedDeals.length > 0) {
+        const { googleSheetsDealsService } = await import('../google-sheets/deals')
+        for (const deal of associatedDeals) {
+          try {
+            await googleSheetsDealsService.delete(deal.id)
+            console.log(`Cascade deleted deal ${deal.id} from Google Sheets (contact ${id} deleted)`)
+          } catch (dealDeleteError) {
+            console.warn(`Failed to cascade delete deal ${deal.id} from Google Sheets:`, dealDeleteError)
+            // Continue deleting other deals even if one fails
+          }
+        }
+      }
+
+      // Delete associated activities
+      const { data: associatedActivities } = await supabase
+        .from('activities')
+        .select('id')
+        .eq('contact_id', id)
+        .eq('user_id', userId)
+
+      if (associatedActivities && associatedActivities.length > 0) {
+        const { googleSheetsActivitiesService } = await import('../google-sheets/activities')
+        for (const activity of associatedActivities) {
+          try {
+            await googleSheetsActivitiesService.delete(activity.id)
+            console.log(`Cascade deleted activity ${activity.id} from Google Sheets (contact ${id} deleted)`)
+          } catch (activityDeleteError) {
+            console.warn(`Failed to cascade delete activity ${activity.id} from Google Sheets:`, activityDeleteError)
+            // Continue deleting other activities even if one fails
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch associated records for cascade delete:', error)
+      // Continue with contact deletion even if cascade delete fails
+    }
+
+    // Delete from Supabase (this will cascade delete deals in Supabase via foreign key)
     const { error } = await supabase
       .from('contacts')
       .delete()
