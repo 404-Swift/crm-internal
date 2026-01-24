@@ -249,21 +249,50 @@ export async function resolveDealConflicts(
           }
           // If ID conflict, try without ID
           if (error.code === '23505') {
-            const created = await dealsService.create({
-              title: sheetsDeal.title,
-              contact_id: sheetsDeal.contact_id,
-              amount: sheetsDeal.amount,
-              stage: sheetsDeal.stage,
-              probability: sheetsDeal.probability,
-              expected_close_date: sheetsDeal.expected_close_date,
-            }, userId)
-            // Update Sheets row with new Supabase ID
+            // Check if contact exists before trying to create
+            if (sheetsDeal.contact_id) {
+              const contact = await contactsService.getById(sheetsDeal.contact_id, userId)
+              if (!contact) {
+                // Contact doesn't exist - delete the orphaned deal
+                console.log(`Deal ${resolution.recordId} has invalid contact_id ${sheetsDeal.contact_id} - deleting orphaned deal`)
+                try {
+                  await googleSheetsDealsService.delete(resolution.recordId)
+                } catch (deleteError) {
+                  console.warn(`Failed to delete orphaned deal from Google Sheets:`, deleteError)
+                }
+                continue
+              }
+            }
+            
             try {
-              await googleSheetsDealsService.update({ ...created, id: sheetsDeal.id } as Deal, false)
-            } catch (syncError) {
-              console.error(`Failed to sync deal to Google Sheets after creation:`, syncError)
-              const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
-              throw new Error(`Failed to sync deal to Google Sheets: ${errorMessage}`)
+              const created = await dealsService.create({
+                title: sheetsDeal.title,
+                contact_id: sheetsDeal.contact_id,
+                amount: sheetsDeal.amount,
+                stage: sheetsDeal.stage,
+                probability: sheetsDeal.probability,
+                expected_close_date: sheetsDeal.expected_close_date,
+              }, userId)
+              // Update Sheets row with new Supabase ID
+              try {
+                await googleSheetsDealsService.update({ ...created, id: sheetsDeal.id } as Deal, false)
+              } catch (syncError) {
+                console.error(`Failed to sync deal to Google Sheets after creation:`, syncError)
+                const errorMessage = syncError instanceof Error ? syncError.message : String(syncError)
+                throw new Error(`Failed to sync deal to Google Sheets: ${errorMessage}`)
+              }
+            } catch (createError: any) {
+              // If create also fails with foreign key violation, delete the orphaned deal
+              if (createError?.code === '23503' || createError?.message?.includes('foreign key')) {
+                console.log(`Deal ${resolution.recordId} has invalid contact_id ${sheetsDeal.contact_id} - deleting orphaned deal`)
+                try {
+                  await googleSheetsDealsService.delete(resolution.recordId)
+                } catch (deleteError) {
+                  console.warn(`Failed to delete orphaned deal from Google Sheets:`, deleteError)
+                }
+                continue
+              }
+              throw createError
             }
           } else {
             const errorMessage = error.message || String(error)
@@ -407,12 +436,29 @@ export async function resolveDealConflicts(
           }
         } catch (updateError: any) {
           console.error(`Failed to update deal ${resolution.recordId} in Supabase:`, updateError)
+          
+          // If foreign key violation (contact doesn't exist), delete the orphaned deal
+          if (updateError?.code === '23503' || updateError?.message?.includes('foreign key')) {
+            console.log(`Deal ${resolution.recordId} has invalid contact_id - deleting orphaned deal`)
+            try {
+              await dealsService.delete(resolution.recordId, userId)
+            } catch (deleteError) {
+              console.warn(`Failed to delete orphaned deal from Supabase:`, deleteError)
+            }
+            if (sheetsDeal) {
+              try {
+                await googleSheetsDealsService.delete(resolution.recordId)
+              } catch (deleteError) {
+                console.warn(`Failed to delete orphaned deal from Google Sheets:`, deleteError)
+              }
+            }
+            continue
+          }
+          
           let errorMessage = updateError instanceof Error ? updateError.message : String(updateError)
           
           // Provide more helpful error messages for common issues
-          if (updateError?.code === '23503') {
-            errorMessage = `Invalid contact reference. The contact ID "${resolvedDeal.contact_id}" does not exist in Supabase.`
-          } else if (updateError?.code === '23505') {
+          if (updateError?.code === '23505') {
             errorMessage = `Duplicate deal detected. A deal with this information already exists.`
           } else if (updateError?.code === 'PGRST116') {
             errorMessage = `Deal not found. It may have been deleted.`
