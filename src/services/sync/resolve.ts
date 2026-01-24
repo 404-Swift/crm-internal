@@ -186,6 +186,32 @@ export async function resolveDealConflicts(
       const supabaseDeal = conflict.supabaseRecord
       const sheetsDeal = conflict.sheetsRecord || sheetsMap.get(resolution.recordId)
 
+      // Check for orphaned deals (contact doesn't exist) - delete them
+      const { contactsService } = await import('../supabase/contacts')
+      const dealContactId = sheetsDeal?.contact_id || supabaseDeal?.contact_id
+      if (dealContactId) {
+        const contactExists = await contactsService.getById(dealContactId, userId)
+        if (!contactExists) {
+          // Contact doesn't exist - delete the orphaned deal from both systems
+          console.log(`Deal ${resolution.recordId} is orphaned (contact ${dealContactId} doesn't exist) - deleting`)
+          if (supabaseDeal) {
+            try {
+              await dealsService.delete(resolution.recordId, userId)
+            } catch (deleteError) {
+              console.warn(`Failed to delete orphaned deal from Supabase:`, deleteError)
+            }
+          }
+          if (sheetsDeal) {
+            try {
+              await googleSheetsDealsService.delete(resolution.recordId)
+            } catch (deleteError) {
+              console.warn(`Failed to delete orphaned deal from Google Sheets:`, deleteError)
+            }
+          }
+          continue
+        }
+      }
+
       // Check for new records in Sheets FIRST, before general use-sheets case
       if (conflict.isNewInSheets && sheetsDeal && resolution.action === 'use-sheets') {
         // New record in Sheets - create in Supabase with same ID
@@ -209,6 +235,18 @@ export async function resolveDealConflicts(
           .single()
         
         if (error) {
+          // If foreign key violation (contact doesn't exist), delete the deal
+          if (error.code === '23503') {
+            console.log(`Deal ${resolution.recordId} has invalid contact_id ${sheetsDeal.contact_id} - deleting orphaned deal`)
+            if (sheetsDeal) {
+              try {
+                await googleSheetsDealsService.delete(resolution.recordId)
+              } catch (deleteError) {
+                console.warn(`Failed to delete orphaned deal from Google Sheets:`, deleteError)
+              }
+            }
+            continue
+          }
           // If ID conflict, try without ID
           if (error.code === '23505') {
             const created = await dealsService.create({
@@ -318,12 +356,26 @@ export async function resolveDealConflicts(
 
       if (Object.keys(resolvedDeal).length > 0 && supabaseDeal) {
         try {
-          // Validate contact_id exists if it's being updated
-          if (resolvedDeal.contact_id && resolvedDeal.contact_id !== supabaseDeal.contact_id) {
-            const { contactsService } = await import('../supabase/contacts')
-            const contact = await contactsService.getById(resolvedDeal.contact_id, userId)
+          // Validate contact_id exists (check both resolved and existing)
+          const contactIdToCheck = resolvedDeal.contact_id || supabaseDeal.contact_id
+          if (contactIdToCheck) {
+            const contact = await contactsService.getById(contactIdToCheck, userId)
             if (!contact) {
-              throw new Error(`Contact with ID ${resolvedDeal.contact_id} does not exist. Please ensure the contact exists in Supabase before syncing.`)
+              // Contact doesn't exist - delete the orphaned deal
+              console.log(`Deal ${resolution.recordId} is orphaned (contact ${contactIdToCheck} doesn't exist) - deleting`)
+              try {
+                await dealsService.delete(resolution.recordId, userId)
+              } catch (deleteError) {
+                console.warn(`Failed to delete orphaned deal from Supabase:`, deleteError)
+              }
+              if (sheetsDeal) {
+                try {
+                  await googleSheetsDealsService.delete(resolution.recordId)
+                } catch (deleteError) {
+                  console.warn(`Failed to delete orphaned deal from Google Sheets:`, deleteError)
+                }
+              }
+              continue
             }
           }
 

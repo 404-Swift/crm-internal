@@ -49,10 +49,96 @@ export function useBidirectionalSync() {
         }),
       ])
 
+      // Filter out orphaned deals (deals whose contact doesn't exist) and delete them
+      const contactIds = new Set(supabaseContacts.map(c => c.id))
+      const orphanedSupabaseDeals = supabaseDeals.filter(deal => deal.contact_id && !contactIds.has(deal.contact_id))
+      const orphanedSheetsDeals = sheetsDeals.filter(deal => deal.contact_id && !contactIds.has(deal.contact_id))
+      
+      // Delete orphaned deals from both systems
+      for (const deal of orphanedSupabaseDeals) {
+        try {
+          await dealsService.delete(deal.id, user.id)
+          console.log(`Deleted orphaned deal ${deal.id} from Supabase - contact ${deal.contact_id} doesn't exist`)
+        } catch (error) {
+          console.error(`Failed to delete orphaned deal ${deal.id} from Supabase:`, error)
+        }
+      }
+      for (const deal of orphanedSheetsDeals) {
+        try {
+          const { googleSheetsDealsService } = await import('@/services/google-sheets/deals')
+          await googleSheetsDealsService.delete(deal.id)
+          console.log(`Deleted orphaned deal ${deal.id} from Google Sheets - contact ${deal.contact_id} doesn't exist`)
+        } catch (error) {
+          console.error(`Failed to delete orphaned deal ${deal.id} from Google Sheets:`, error)
+        }
+      }
+      
+      const validSupabaseDeals = supabaseDeals.filter(deal => {
+        if (deal.contact_id && !contactIds.has(deal.contact_id)) {
+          return false
+        }
+        return true
+      })
+      const validSheetsDeals = sheetsDeals.filter(deal => {
+        if (deal.contact_id && !contactIds.has(deal.contact_id)) {
+          return false
+        }
+        return true
+      })
+
+      // Filter out orphaned activities (activities whose contact or deal doesn't exist) and delete them
+      const dealIds = new Set(validSupabaseDeals.map(d => d.id))
+      const orphanedSupabaseActivities = supabaseActivities.filter(activity => {
+        return (activity.contact_id && !contactIds.has(activity.contact_id)) ||
+               (activity.deal_id && !dealIds.has(activity.deal_id))
+      })
+      const orphanedSheetsActivities = sheetsActivities.filter(activity => {
+        return (activity.contact_id && !contactIds.has(activity.contact_id)) ||
+               (activity.deal_id && !dealIds.has(activity.deal_id))
+      })
+      
+      // Delete orphaned activities from both systems
+      for (const activity of orphanedSupabaseActivities) {
+        try {
+          await activitiesService.delete(activity.id, user.id)
+          console.log(`Deleted orphaned activity ${activity.id} from Supabase`)
+        } catch (error) {
+          console.error(`Failed to delete orphaned activity ${activity.id} from Supabase:`, error)
+        }
+      }
+      for (const activity of orphanedSheetsActivities) {
+        try {
+          const { googleSheetsActivitiesService } = await import('@/services/google-sheets/activities')
+          await googleSheetsActivitiesService.delete(activity.id)
+          console.log(`Deleted orphaned activity ${activity.id} from Google Sheets`)
+        } catch (error) {
+          console.error(`Failed to delete orphaned activity ${activity.id} from Google Sheets:`, error)
+        }
+      }
+      
+      const validSupabaseActivities = supabaseActivities.filter(activity => {
+        if (activity.contact_id && !contactIds.has(activity.contact_id)) {
+          return false
+        }
+        if (activity.deal_id && !dealIds.has(activity.deal_id)) {
+          return false
+        }
+        return true
+      })
+      const validSheetsActivities = sheetsActivities.filter(activity => {
+        if (activity.contact_id && !contactIds.has(activity.contact_id)) {
+          return false
+        }
+        if (activity.deal_id && !dealIds.has(activity.deal_id)) {
+          return false
+        }
+        return true
+      })
+
       // Compare
       const contacts = compareContacts(supabaseContacts, sheetsContacts)
-      const deals = compareDeals(supabaseDeals, sheetsDeals)
-      const activities = compareActivities(supabaseActivities, sheetsActivities)
+      const deals = compareDeals(validSupabaseDeals, validSheetsDeals)
+      const activities = compareActivities(validSupabaseActivities, validSheetsActivities)
 
       setContactConflicts(contacts)
       setDealConflicts(deals)
