@@ -212,11 +212,30 @@ export default function ConflictResolution() {
         let action: Resolution<any>['action'] = 'skip'
         let fieldRes: Partial<Record<string, 'supabase' | 'sheets'>> | undefined
 
-        // Prioritize new records - they need explicit action
-        if (conflict.isNewInSheets) {
+        // Check if user has selected a bulk action - respect it for new records too
+        if (bulkAction) {
+          // User explicitly chose an action - respect it
+          if (conflict.isNewInSheets) {
+            action = bulkAction
+            console.log(`Resolving new record in Sheets with user choice (${bulkAction}): ${recordId}`, conflict)
+          } else if (conflict.isNewInSupabase) {
+            action = bulkAction
+            console.log(`Resolving new record in Supabase with user choice (${bulkAction}): ${recordId}`, conflict)
+          } else if (conflict.conflicts.length > 0) {
+            // Handle field conflicts with bulk action
+            action = bulkAction
+            const resolutions: Partial<Record<string, 'supabase' | 'sheets'>> = {}
+            conflict.conflicts.forEach((conf: any) => {
+              resolutions[conf.field] = bulkAction === 'use-supabase' ? 'supabase' : 'sheets'
+            })
+            fieldRes = resolutions
+          }
+        } else if (conflict.isNewInSheets) {
+          // No bulk action - default to use-sheets for new records in Sheets
           action = 'use-sheets'
           console.log(`Resolving new record in Sheets: ${recordId}`, conflict)
         } else if (conflict.isNewInSupabase) {
+          // No bulk action - default to use-supabase for new records in Supabase
           action = 'use-supabase'
           console.log(`Resolving new record in Supabase: ${recordId}`, conflict)
         } else if (conflict.conflicts.length > 0) {
