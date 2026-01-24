@@ -113,15 +113,15 @@ export const contactsService = {
     // (Supabase will cascade delete them automatically via foreign key)
     try {
       // Delete associated deals
-      const { data: associatedDeals } = await supabase
-        .from('deals')
+      const { data: associatedDeals } = await (supabase
+        .from('deals') as any)
         .select('id')
         .eq('contact_id', id)
         .eq('user_id', userId)
 
       if (associatedDeals && associatedDeals.length > 0) {
         const { googleSheetsDealsService } = await import('../google-sheets/deals')
-        for (const deal of associatedDeals) {
+        for (const deal of associatedDeals as Array<{ id: string }>) {
           try {
             await googleSheetsDealsService.delete(deal.id)
             console.log(`Cascade deleted deal ${deal.id} from Google Sheets (contact ${id} deleted)`)
@@ -133,15 +133,15 @@ export const contactsService = {
       }
 
       // Delete associated activities
-      const { data: associatedActivities } = await supabase
-        .from('activities')
+      const { data: associatedActivities } = await (supabase
+        .from('activities') as any)
         .select('id')
         .eq('contact_id', id)
         .eq('user_id', userId)
 
       if (associatedActivities && associatedActivities.length > 0) {
         const { googleSheetsActivitiesService } = await import('../google-sheets/activities')
-        for (const activity of associatedActivities) {
+        for (const activity of associatedActivities as Array<{ id: string }>) {
           try {
             await googleSheetsActivitiesService.delete(activity.id)
             console.log(`Cascade deleted activity ${activity.id} from Google Sheets (contact ${id} deleted)`)
